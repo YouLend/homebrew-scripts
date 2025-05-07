@@ -2,14 +2,32 @@
 # 		    Teleport CLI shortcuts
 # ===========================================================
 th(){
+  # ========================
+  # Helper - Teleport Login
+  # ========================
   th_login() {
+    tsh logout
+
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
       echo "Already logged in to Teleport."
       return 0
     fi
-
-    echo "Logging you into Teleport..."
-    tsh login --auth=ad --proxy=youlend.teleport.sh:443
+    echo
+    echo -n "Have a request id? (y/n) "
+    read request
+    if [[ $request =~ ^[Yy]$ ]]; then
+      echo
+      echo -n "Enter your request id: "
+      read id
+      tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id=$id
+      return 0
+    else
+      echo
+      echo "Logging you into Teleport..."
+      tsh login --auth=ad --proxy=youlend.teleport.sh:443
+      return 0
+    fi
+    
 
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do
@@ -23,6 +41,58 @@ th(){
     echo "❌ Timed out waiting for Teleport login."
     return 1
   }
+
+  # ========================
+  # Helper - Teleport Logout
+  # ========================
+  th_kill() {
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_CA_BUNDLE
+    unset HTTPS_PROXY
+
+    echo "Cleaning up /tmp and shell profile"
+
+    # Enable nullglob in Zsh to prevent errors from unmatched globs
+    if [ -n "$ZSH_VERSION" ]; then
+      setopt NULL_GLOB
+    fi
+
+    # Remove temp credential files
+    for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
+      [ -e "$f" ] && rm -f "$f"
+    done
+
+    # Determine which shell profile to clean
+    local shell_name shell_profile
+    shell_name=$(basename "$SHELL")
+
+    if [ "$shell_name" = "zsh" ]; then
+      shell_profile="$HOME/.zshrc"
+    elif [ "$shell_name" = "bash" ]; then
+      shell_profile="$HOME/.bash_profile"
+    else
+      echo "Unsupported shell: $shell_name. Skipping profile cleanup."
+      shell_profile=""
+    fi
+
+    # Remove any lines sourcing proxy envs from the profile
+    if [ -n "$shell_profile" ] && [ -f "$shell_profile" ]; then
+      sed -i.bak '/[[:space:]]*source \/tmp\/tsh_proxy_/d' "$shell_profile"
+      echo "Cleaned up $shell_profile"
+    fi
+
+    # Log out of all TSH apps
+    tsh apps logout
+
+    # Kill all tsh proxy aws processes
+    ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
+
+    echo "Killed all running tsh proxy processes"
+  }
+  # ========================
+  # Helper - Switch Roles
+  # ========================
   # Helper function to prompt user to switch roles once all proxies have been configured
   th_switch() {
     local available_roles=()
@@ -99,53 +169,9 @@ th(){
       return 1
     fi
   }
-
-  th_kill() {
-    unset AWS_ACCESS_KEY_ID
-    unset AWS_SECRET_ACCESS_KEY
-    unset AWS_CA_BUNDLE
-    unset HTTPS_PROXY
-
-    echo "Cleaning up /tmp and shell profile"
-
-    # Enable nullglob in Zsh to prevent errors from unmatched globs
-    if [ -n "$ZSH_VERSION" ]; then
-      setopt NULL_GLOB
-    fi
-
-    # Remove temp credential files
-    for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
-      [ -e "$f" ] && rm -f "$f"
-    done
-
-    # Determine which shell profile to clean
-    local shell_name shell_profile
-    shell_name=$(basename "$SHELL")
-
-    if [ "$shell_name" = "zsh" ]; then
-      shell_profile="$HOME/.zshrc"
-    elif [ "$shell_name" = "bash" ]; then
-      shell_profile="$HOME/.bash_profile"
-    else
-      echo "Unsupported shell: $shell_name. Skipping profile cleanup."
-      shell_profile=""
-    fi
-
-    # Remove any lines sourcing proxy envs from the profile
-    if [ -n "$shell_profile" ] && [ -f "$shell_profile" ]; then
-      sed -i.bak '/[[:space:]]*source \/tmp\/tsh_proxy_/d' "$shell_profile"
-      echo "Cleaned up $shell_profile"
-    fi
-
-    # Log out of all TSH apps
-    tsh apps logout
-
-    # Kill all tsh proxy aws processes
-    ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
-
-    echo "Killed all running tsh proxy processes"
-  }
-
+  # ========================
+  # Helper - Create Proxies
+  # ========================
   # This function will start a Teleport proxy for the specified account and save the environment variables in a file
   th_proxy() {
     unset AWS_ACCESS_KEY_ID
@@ -175,7 +201,9 @@ th(){
 	    echo "export AWS_DEFAULT_REGION=eu-west-1" >> "/tmp/$ACCOUNT"
     fi
   }
-
+  # ========================
+  # Main - Initialise Accs
+  # ========================
   # Inital start-up function. Signs into Teleport & creates files containing ENVs for each account.
   th_init() {
     # Logout first
@@ -207,7 +235,9 @@ th(){
   #================ Kubernetes ===================
   #===============================================
   
-  # Helper function for interactive login (choose)
+  # ========================
+  # Main - Interactive Login 
+  # ========================
   tkube_interactive_login() {
     th_login
 
@@ -221,12 +251,46 @@ th(){
       return 1
     fi
 
-    # Show header and numbered list of clusters
+    # Define elevated access clusters
+    echo
+    echo "Do you require elevated access?"
+    ea_clusters=(
+      "headquarter-admin-eks-green"
+      "live-prod-eks-green"
+      "live-usprod-eks-green"
+      "aslive-staging-eks-green"
+      "aslive-usstaging-eks-green"
+      "aslive-sandbox-eks-green"
+      "aslive-dev-eks-green"
+    )
+
+    for i in "${!ea_clusters[@]}"; do
+      printf "  %d. %s\n" "$((i+1))" "${ea_clusters[$i]}"
+    done
+    echo
+    echo -n "Select a cluster to request access for (or press Enter to skip): "
+    read selection
+
+    if [[ -n "$selection" && "$selection" =~ ^[1-7]$ ]]; then
+      cluster="${ea_clusters[$((selection-1))]}"
+      echo -n "Enter your reason for request: "
+      read reason
+      echo
+      echo "Access request sent for: $cluster"
+      tsh request create --resource "$cluster" --reason $reason
+      return 0
+    elif [ -n "$selection" ]; then
+      echo "Invalid selection."
+      return 0
+    else
+      echo "No elevated access selected."
+    fi
+
+    # Show cluster list and prompt for normal login
     echo
     echo "$header"
     echo "$clusters" | nl -w2 -s'. '
 
-    # Prompt for selection
     echo
     echo -n "Choose cluster to login (number): "
     read choice
@@ -236,25 +300,27 @@ th(){
       return 1
     fi
 
-    local chosen_line cluster
+    local chosen_line login_cluster
     chosen_line=$(echo "$clusters" | sed -n "${choice}p")
     if [ -z "$chosen_line" ]; then
       echo "Invalid selection."
       return 1
     fi
 
-    cluster=$(echo "$chosen_line" | awk '{print $1}')
-    if [ -z "$cluster" ]; then
+    login_cluster=$(echo "$chosen_line" | awk '{print $1}')
+    if [ -z "$login_cluster" ]; then
       echo "Invalid selection."
       return 1
     fi
-    
+
     echo
-    echo "Logging you into cluster: $cluster"
-    tsh kube login "$cluster"
+    echo "Logging you into cluster: $login_cluster"
+    tsh kube login "$login_cluster"
   }
 
-  # th kube handler
+  # ========================
+  # Helper - Local Handler 
+  # ========================
   tkube() {
     if [ $# -eq 0 ]; then
       tkube_interactive_login
@@ -302,6 +368,10 @@ th(){
   #===============================================
   #=================== AWS =======================
   #===============================================
+
+  # ========================
+  # Helper - Get Credentials
+  # ========================
   get_credentials() {
     # Enable nullglob in Zsh to avoid errors on unmatched globs
     if [ -n "$ZSH_VERSION" ]; then
@@ -318,10 +388,7 @@ th(){
 
     local log_file="/tmp/tsh_proxy_${app}.log"
 
-    # Kill only the matching tsh proxy for this app
-    echo
-    echo "Killed existing proxy"
-    sleep 2
+    # Kill proxy here - Future implementation
 
     # Clean up any matching temp files — won't error in Zsh or Bash now
     for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
@@ -382,7 +449,64 @@ th(){
 
     echo "Credentials exported, and made global, for app: $app"
   } 
-  # Helper function for interactive app login with AWS role selection
+
+  # ========================
+  # Helper - Create Proxy
+  # ========================
+  create_proxy(){
+    while true; do
+      echo
+      echo -n "Would you like to create a proxy? (y/n) "
+      read proxy
+      if [[ $proxy =~ ^[Yy]$ ]]; then
+	get_credentials
+	break
+      elif [[ $proxy =~ ^[Nn]$ ]]; then
+	echo "Proxy creation skipped."
+	break
+      else
+	echo "Invalid input. Please enter Y or N."
+      fi
+    done
+  }
+
+  # ========================
+  # Helper - Create Request 
+  # ========================
+  raise_request(){
+    local app="$1"
+    while true; do
+      echo
+      echo -n "Would you like to raise a request? (y/n) "
+      read request
+      if [[ $request =~ ^[Yy]$ ]]; then
+	echo
+	echo -n "Enter request reason: "
+	read reason
+	if [[ $app == "yl-production" ]]; then
+	  tsh request create --role sudo_prod_role --reason $reason
+	  echo
+	  echo "Access request sent for sudo_prod. Reason: $reason"
+	  return 1
+	else [[ $app == "yl-usproduction" ]]
+	  echo
+	  echo "Access request sent for sudo_usprod. Reason: $reason"
+	  tsh request create --role sudo_usprod_role --reason $reason
+	  return 1
+	fi
+	return 1
+	break
+      elif [[ $request =~ ^[Nn]$ ]]; then
+	return 0
+      else
+	echo "Invalid input. Please enter Y or N."
+      fi
+    done
+  }
+
+  # ========================
+  # Main - Interactive Login
+  # ========================
   tawsp_interactive_login() {
     th_login
 
@@ -446,8 +570,11 @@ th(){
     role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
 
     if [ -z "$role_section" ]; then
-      echo "No AWS roles info found. Attempting direct login..."
+      echo
+      echo "Default role found."
+      raise_request || return 0
       tsh apps login "$app"
+      create_proxy
       return
     fi
 
@@ -494,22 +621,12 @@ th(){
     tsh apps login "$app" --aws-role "$role_name"
 
     echo
-    while true; do
-      echo -n "Would you like to create a proxy? (y/n) "
-      read proxy
-      if [[ $proxy =~ ^[Yy]$ ]]; then
-	get_credentials
-	break
-      elif [[ $proxy =~ ^[Nn]$ ]]; then
-	echo "Proxy creation skipped."
-	break
-      else
-	echo "Invalid input. Please enter Y or N."
-      fi
-    done
+    create_proxy 
   }
 
-  # th aws handler
+  # ========================
+  # Helper - Local Handler
+  # ========================
   tawsp() {
     if [[ $# -eq 0 ]]; then
       tawsp_interactive_login
@@ -538,7 +655,7 @@ th(){
   }
 
   #===============================================
-  #================== Handler ====================
+  #================ Main Handler =================
   #===============================================
   # Handle user input & redirect to the appropriate function
   case "$1" in
