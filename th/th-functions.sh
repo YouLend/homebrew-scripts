@@ -600,7 +600,7 @@ th(){
       printf "\033[1mth aws    | a\033[0m : AWS login.\n"
       printf "\033[1mth terra  | t\033[0m : Log into yl-admin as sudo-admin for use with Terraform/Grunt.\n"
       printf "\033[1mth logout | l\033[0m : Clean up Teleport session.\n"
-      printf "\033[1mth login     \033[0m : Simple log in to Teleport\033[0m"
+      printf "\033[1mth login     \033[0m : Simple log in to Teleport\033[0m\n"
       printf "\033[1m------------------------------------------------------------------------\033[0m\n"
       printf "For specific instructions regarding any of the above, run \033[1mth <option> -h\033[0m\n"
   esac
