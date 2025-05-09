@@ -6,52 +6,31 @@ th(){
   # Helper - Teleport Login
   # ========================
   th_login() {
-    tsh logout
-
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-      echo "Already logged in to Teleport."
+      printf "\033[1;32mAlready logged in to Teleport.\033[0m\n"
       return 0
     fi
-    echo
-    echo -n "Have a request id? (y/n) "
-    read request
-    if [[ $request =~ ^[Yy]$ ]]; then
-      echo
-      echo -n "Enter your request id: "
-      read id
-      tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id=$id
-      return 0
-    else
-      echo
-      echo "Logging you into Teleport..."
-      tsh login --auth=ad --proxy=youlend.teleport.sh:443
-      return 0
-    fi
-    
-
+    echo "Logging you into Teleport..."
+    tsh login --auth=ad --proxy=youlend.teleport.sh:443 > /dev/null 2>&1
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do
       if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-	echo "✅ Logged in to Teleport."
+	printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
 	return 0
       fi
       sleep 0.5
     done
 
-    echo "❌ Timed out waiting for Teleport login."
+    printf "\n❌ \033[1;31mTimed out waiting for Teleport login.\033[0m"
     return 1
   }
 
+  
   # ========================
   # Helper - Teleport Logout
   # ========================
   th_kill() {
-    unset AWS_ACCESS_KEY_ID
-    unset AWS_SECRET_ACCESS_KEY
-    unset AWS_CA_BUNDLE
-    unset HTTPS_PROXY
-
-    echo "Cleaning up /tmp and shell profile"
+    printf "🧹 \033[1mCleaning up Teleport session...\033[0m"
 
     # Enable nullglob in Zsh to prevent errors from unmatched globs
     if [ -n "$ZSH_VERSION" ]; then
@@ -79,167 +58,66 @@ th(){
     # Remove any lines sourcing proxy envs from the profile
     if [ -n "$shell_profile" ] && [ -f "$shell_profile" ]; then
       sed -i.bak '/[[:space:]]*source \/tmp\/tsh_proxy_/d' "$shell_profile"
-      echo "Cleaned up $shell_profile"
+      printf "\n\n✏️ \033[0mRemoving source lines from $shell_profile...\033[0m"
     fi
 
-    # Log out of all TSH apps
-    tsh apps logout
+    printf "\n📃 \033[0mRemoving ENVs...\033[0m"
 
-    # Kill all tsh proxy aws processes
-    ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
-
-    echo "Killed all running tsh proxy processes"
-  }
-  # ========================
-  # Helper - Switch Roles
-  # ========================
-  # Helper function to prompt user to switch roles once all proxies have been configured
-  th_switch() {
-    local available_roles=()
-    local role_path name
-
-    # Enable nullglob in Zsh so /tmp/* doesn't error when empty
-    if [ -n "$ZSH_VERSION" ]; then
-      setopt NULL_GLOB
-      setopt KSH_ARRAYS
-    fi
-
-    # Collect role files from /tmp
-    for role_path in /tmp/*; do
-      # Skip logs
-      [[ "$role_path" == *.log ]] && continue
-
-      # Portable basename extraction
-      name=$(basename "$role_path")
-
-      # Match role prefix
-      case "$name" in
-	yl*|tsh*|admin*)
-	  available_roles+=("$name")
-	  ;;
-      esac
-    done
-
-    # Exit if no roles found
-    if [[ ${#available_roles[@]} -eq 0 ]]; then
-      echo "No roles available. Run 'th init' to set up Teleport proxies and AWS profiles."
-      return 1
-    fi
-
-    # Direct switch if role name given
-    if [[ -n "$1" ]]; then
-      for role in "${available_roles[@]}"; do
-	if [[ "$1" == "$role" ]]; then
-	  source "/tmp/$role"
-	  echo "Switched to $role successfully"
-	  return 0
-	fi
-      done
-      echo "Error: Role '$1' not found among available roles."
-      return 1
-    fi
-
-    echo "Available roles:"
-    for ((i = 0; i < ${#available_roles[@]}; i++)); do
-      printf "%2d. %s\n" $((i + 1)) "${available_roles[$i]}"
-    done
-
-    echo
-    echo -n "Select which role you'd like to assume (number): "
-    read choice
-
-    # Validate numeric input
-    if ! echo "$choice" | grep -qE '^[0-9]+$'; then
-      echo "Invalid selection. Exiting."
-      return 1
-    fi
-
-    local index=$((choice - 1))
-    if (( index < 0 || index >= ${#available_roles[@]} )); then
-      echo "Selection out of range. Exiting."
-      return 1
-    fi
-
-    local selected_role="${available_roles[$index]}"
-    if [[ -f "/tmp/$selected_role" ]]; then
-      source "/tmp/$selected_role"
-      echo "Switched to $selected_role successfully"
-    else
-      echo "Error: Role file '/tmp/$selected_role' not found."
-      return 1
-    fi
-  }
-  # ========================
-  # Helper - Create Proxies
-  # ========================
-  # This function will start a Teleport proxy for the specified account and save the environment variables in a file
-  th_proxy() {
     unset AWS_ACCESS_KEY_ID
     unset AWS_SECRET_ACCESS_KEY
     unset AWS_CA_BUNDLE
     unset HTTPS_PROXY
-    local ACCOUNT=$1
-    local ISADMIN=$2
-    if [[ -n $ISADMIN ]]; then
-	    echo "I am an admin"
-	    echo "$ACCOUNT $ISADMIN"
-	    tsh proxy aws --app $ACCOUNT  2>&1 | tee /tmp/tsh_admin_proxy_output.log &
-	    # Wait for a bit to ensure the log file gets populated (adjust if needed)
-	    sleep 2
-	    # Extract the environment variables and save them in a sourceable script
-	    grep "export " /tmp/tsh_admin_proxy_output.log > /tmp/admin_$ACCOUNT
-    else
-	    tsh proxy aws --app $ACCOUNT  2>&1 | tee /tmp/tsh_proxy_output.log &
-	    #› Wait for a bit to ensure the log file gets populated (adjust if needed)
-	    sleep 2
-	    # Extract the environment variables and save them in a sourceable script
-	    grep "export " /tmp/tsh_proxy_output.log > /tmp/$ACCOUNT
-    fi
-    if [[ $ACCOUNT =~ ^yl-us ]]; then
-	    echo "export AWS_DEFAULT_REGION=us-east-2" >> "/tmp/$ACCOUNT"
-    else
-	    echo "export AWS_DEFAULT_REGION=eu-west-1" >> "/tmp/$ACCOUNT"
-    fi
+    unset ACCOUNT
+    unset AWS_DEFAULT_REGION
+
+    printf "\n💀 \033[0mKilling all running tsh proxies...\033[0m"
+    # Kill all tsh proxy aws processes
+    ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
+    tsh logout > /dev/null 2>&1
+    
+    tsh apps logout > /dev/null 2>&1
+    printf "\n\n✅ \033[1;32mLogged out of all apps, clusters & proxies\033[0m"
   }
-  # ========================
-  # Main - Initialise Accs
-  # ========================
-  # Inital start-up function. Signs into Teleport & creates files containing ENVs for each account.
-  th_init() {
-    # Logout first
-    th_kill
 
-    # Login to Teleport
-    th_login 
-
-    # Set-up proxies for each of the environments
-    for i in $(tsh apps ls | awk 'NR>2 {print $1}' | grep -v admin | grep .); do
-      tsh apps login $i  2>&1 | tee /tmp/tsh_login_output.log
-      if grep -q "ERROR" /tmp/tsh_login_output.log; then
-	      ROLE=$(grep arn /tmp/tsh_login_output.log | head -n1 | sed 's/ .*//g')
-	      echo "Using role:" $ROLE
-	      tsh apps login $i --aws-role $ROLE
-      fi
-      th_proxy $i
-    done
-    # Login to yl-admin as admin
-    tsh apps login yl-admin --aws-role sudo_admin
-    th_proxy yl-admin true
-    tsh kube ls | cut -d ' ' -f1 | sed '1,2d' | grep . | xargs -n1 tsh kube login
-
-    printf "Run \033[1mth switch\033[0m or \033[1mth switch <role>\033[0m to select an AWS role."
-    printf "\nOr run \033[1mth kube | th k\033[0m to log into a cluster."
-
-  }
   #===============================================
   #================ Kubernetes ===================
   #===============================================
-  
+  tkube_elevated_login() {
+    while true; do
+      printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
+      printf "\n\nDo you require access to \033[1mprod/usprod?\033[0m (y/n): "
+      read elevated
+      if [[ $elevated =~ ^[Yy]$ ]]; then
+	# Adds checks for new kubernetes roles here (us-production-eks)	
+
+	printf "\n\033[1mEnter your reason for request:\033[0m"
+	read reason
+	printf "\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
+	tsh request create --roles production-eks-clusters --reason "$reason"
+	ELEVATED="true"
+	tkube_interactive_login
+	return 0
+
+      elif [[ $elevated =~ ^[Nn]$ ]]; then
+	echo
+	echo "Request creation skipped."
+	return 0
+      else
+	echo "Invalid input. Please enter y or n."
+      fi
+    done
+  }
   # ========================
   # Main - Interactive Login 
   # ========================
   tkube_interactive_login() {
     th_login
+
+    if [[ "$ELEVATED" != "true" ]]; then
+      tkube_elevated_login
+    else
+      return 0
+    fi
 
     local output header clusters
     output=$(tsh kube ls -f text)
@@ -251,48 +129,12 @@ th(){
       return 1
     fi
 
-    # Define elevated access clusters
-    echo
-    echo "Do you require elevated access?"
-    ea_clusters=(
-      "headquarter-admin-eks-green"
-      "live-prod-eks-green"
-      "live-usprod-eks-green"
-      "aslive-staging-eks-green"
-      "aslive-usstaging-eks-green"
-      "aslive-sandbox-eks-green"
-      "aslive-dev-eks-green"
-    )
-
-    for i in "${!ea_clusters[@]}"; do
-      printf "  %d. %s\n" "$((i+1))" "${ea_clusters[$i]}"
-    done
-    echo
-    echo -n "Select a cluster to request access for (or press Enter to skip): "
-    read selection
-
-    if [[ -n "$selection" && "$selection" =~ ^[1-7]$ ]]; then
-      cluster="${ea_clusters[$((selection-1))]}"
-      echo -n "Enter your reason for request: "
-      read reason
-      echo
-      echo "Access request sent for: $cluster"
-      tsh request create --resource "$cluster" --reason $reason
-      return 0
-    elif [ -n "$selection" ]; then
-      echo "Invalid selection."
-      return 0
-    else
-      echo "No elevated access selected."
-    fi
-
     # Show cluster list and prompt for normal login
-    echo
+    printf "\n\033[1;4mAvailable Clusters:\033[0m\n\n"
     echo "$header"
     echo "$clusters" | nl -w2 -s'. '
 
-    echo
-    echo -n "Choose cluster to login (number): "
+    printf "\n\033[1mSelect cluster (number):\033[0m "
     read choice
 
     if [ -z "$choice" ]; then
@@ -313,9 +155,9 @@ th(){
       return 1
     fi
 
-    echo
-    echo "Logging you into cluster: $login_cluster"
+    printf "\n\033[1mLogging you into:\033[0m \033[1;32m$login_cluster\033[0m\n\n"
     tsh kube login "$login_cluster"
+    ELEVATED="false"
   }
 
   # ========================
@@ -389,15 +231,17 @@ th(){
     local log_file="/tmp/tsh_proxy_${app}.log"
 
     # Kill proxy here - Future implementation
+    # pkill -f "tsh proxy" 2>/dev/null
+    # sleep 2
 
     # Clean up any matching temp files — won't error in Zsh or Bash now
     for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
       [ -e "$f" ] && rm -f "$f"
     done
-    echo "Cleaned up existing credentials files."
 
-    echo
-    echo "Starting AWS proxy for app: $app..."
+    printf "\nCleaned up existing credential files."
+
+    printf "\nStarting AWS proxy for \033[1;32m$app\033[0m... Process id: "
 
     tsh proxy aws --app "$app" > "$log_file" 2>&1 &
 
@@ -447,7 +291,7 @@ th(){
       echo "export AWS_DEFAULT_REGION=eu-west-1" >> "$log_file"
     fi
 
-    echo "Credentials exported, and made global, for app: $app"
+    printf "\nCredentials exported, and made global, for app: \033[1;32m$app\033[0m"
   } 
 
   # ========================
@@ -455,14 +299,16 @@ th(){
   # ========================
   create_proxy(){
     while true; do
-      echo
-      echo -n "Would you like to create a proxy? (y/n) "
+      printf "\n\n======================== \033[1mProxy Creation\033[0m ============================"
+      printf "\n\nUsing a proxy will allow you to use \033[1maws\033[0m commands\n"
+      printf "without needing to prefix with \033[1mtsh\033[0m"
+      printf "\n\n\033[1mWould you like to create a proxy? (y/n):\033[0m "
       read proxy
       if [[ $proxy =~ ^[Yy]$ ]]; then
 	get_credentials
 	break
       elif [[ $proxy =~ ^[Nn]$ ]]; then
-	echo "Proxy creation skipped."
+	printf "\nProxy creation skipped."
 	break
       else
 	echo "Invalid input. Please enter Y or N."
@@ -476,30 +322,66 @@ th(){
   raise_request(){
     local app="$1"
     while true; do
-      echo
-      echo -n "Would you like to raise a request? (y/n) "
+      printf "\n\n\033[1mWould you like to raise a privilege request? (y/n):\033[0m "
       read request
       if [[ $request =~ ^[Yy]$ ]]; then
-	echo
-	echo -n "Enter request reason: "
+	printf "\n\033[1mEnter request reason:\033[0m "
 	read reason
 	if [[ $app == "yl-production" ]]; then
-	  tsh request create --role sudo_prod_role --reason $reason
-	  echo
-	  echo "Access request sent for sudo_prod. Reason: $reason"
-	  return 1
-	else [[ $app == "yl-usproduction" ]]
-	  echo
-	  echo "Access request sent for sudo_usprod. Reason: $reason"
-	  tsh request create --role sudo_usprod_role --reason $reason
-	  return 1
+	  printf "\n✅ \033[1;32mAccess request sent for sudo_prod.\033[0m"
+	  tsh request create --roles sudo_prod_role --reason $reason
+	  RAISED_ROLE="sudo_prod"
+	  return 0
+	elif [[ $app == "yl-usproduction" ]]; then
+	  printf "\n✅ \033[1;32mAccess request sent for sudo_usprod.\033[0m"
+	  tsh request create --roles sudo_usprod_role --reason $reason
+	  RAISED_ROLE="sudo_usprod"
+	  return 0
+	else
+	  printf "\nNo associated roles"
+	  return 1 
 	fi
 	return 1
 	break
       elif [[ $request =~ ^[Nn]$ ]]; then
+	return 1
+      else
+	printf "\n❌ \033[1;31mInvalid input. Please enter Y or N.\033[0m\n"
+      fi
+    done
+  }
+
+  # ========================
+  # Helper - Login via req --- Not currently in use
+  # ========================
+  request_login() {
+    # Loop until valid input (y/n)
+    while true; do
+      echo
+      read -p "Have a request ID? (y/n): " request
+      if [[ $request =~ ^[Yy]$ ]]; then
+	echo
+	tsh logout
+	echo
+	while true; do
+	  echo
+	  read -p "Enter your request ID: " id
+	  if [[ -n "$id" ]]; then
+	    echo
+	    echo "Logging in with request ID: $id"
+	    tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$id"
+	    return 0
+	  else
+	    echo
+	    echo "Request ID cannot be empty. Please try again."
+	  fi
+	done
+      elif [[ $request =~ ^[Nn]$ ]]; then
+	raise_request $app
 	return 0
       else
-	echo "Invalid input. Please enter Y or N."
+	echo
+	echo "Invalid input. Please enter y or n."
       fi
     done
   }
@@ -523,13 +405,13 @@ th(){
     fi
 
     # Display header and numbered list of apps.
-    echo
+    printf "\n\033[1;4mAvailable apps:\033[0m\n\n"
     echo "$header"
     echo "$apps" | nl -w2 -s'. '
 
     # Prompt for app selection.
     echo
-    echo -n "Choose app to login (number): "
+    printf "\033[1mSelect Application (number):\033[0m "
     read app_choice
     if [ -z "$app_choice" ]; then
       echo "No selection made. Exiting."
@@ -550,10 +432,10 @@ th(){
       return 1
     fi
 
-    echo "Selected app: $app"
+    printf "\nSelected app: \033[1;32m$app\033[0m\n"
 
     # Log out of the selected app to force fresh AWS role output.
-    echo "Logging out of app: $app..."
+    printf "\nLogging out of app: $app...\n"
     tsh apps logout > /dev/null 2>&1
 
     # Run tsh apps login to capture the AWS roles listing.
@@ -570,11 +452,23 @@ th(){
     role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
 
     if [ -z "$role_section" ]; then
-      echo
-      echo "Default role found."
-      raise_request || return 0
-      tsh apps login "$app"
-      create_proxy
+
+      local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
+
+      printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
+      printf "\n\nNo privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
+      if raise_request "$app"; then
+	local role="$RAISED_ROLE"
+	printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$role\033[0m!"
+	tsh apps login "$app" --aws-role "$role" > /dev/null 2>&1
+	printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
+	create_proxy
+      else
+	printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m!" 
+	tsh apps login "$app" > /dev/null 2>&1
+	printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
+	return 
+      fi
       return
     fi
 
@@ -590,14 +484,12 @@ th(){
       return
     fi
 
-    echo
-    echo "Available AWS roles:"
+    printf "\n\033[1;4mAvailable roles:\033[0m\n\n"
     echo "$role_header"
     echo "$roles_list" | nl -w2 -s'. '
 
     # Prompt for role selection.
-    echo
-    echo -n "Choose AWS role (number): " 
+    printf "\n\033[1mSelect role (number):\033[0m " 
     read role_choice
     if [ -z "$role_choice" ]; then
       echo "No selection made. Exiting."
@@ -617,10 +509,9 @@ th(){
       return 1
     fi
 
-    echo "Logging you into app: $app with AWS role: $role_name"
-    tsh apps login "$app" --aws-role "$role_name"
+    printf "\nLogging you into \033[1;32m$app\033[0m as \033[1;32m$role_name\033[0m"
+    tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
 
-    echo
     create_proxy 
   }
 
@@ -647,11 +538,12 @@ th(){
   #================= Terraform ===================
   #===============================================
   terraform_login() {
-    th_login
-    tsh apps logout
-    tsh apps login "yl-admin" --aws-role "sudo_admin"
+    th_login     
+    tsh apps logout > /dev/null 2>&1
+    printf "\n\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin.\033[0m"
+    tsh apps login "yl-admin" --aws-role "sudo_admin" > /dev/null 2>&1
     get_credentials
-    echo "Logged into yl-admin as sudo_admin."
+    printf "\n\n✅ \033[1;32mLogged in successfully!\033[0m"
   }
 
   #===============================================
@@ -659,24 +551,6 @@ th(){
   #===============================================
   # Handle user input & redirect to the appropriate function
   case "$1" in
-    init|i)
-      if [[ "$2" == "-h" ]]; then
-	echo "Sets up all proxies. Saves each profile to /tmp."
-	printf "Once complete can switch between the various accounts with \33[1mth switch\033[0m."
-      else
-	th_init "$@"
-      fi
-      ;;
-    switch|s)
-      if [[ "$2" == "-h" ]]; then
-	echo "Switch between the various AWS accounts."
-	printf "Usage: \033[1mth switch\033[1m for interactive or"
-	printf "\033[1mth switch <profile>\033[0m"
-      else
-	shift
-	th_switch "$@"
-      fi
-      ;;
     kube|k)
       if [[ "$2" == "-h" ]]; then
 	echo "Usage:"
@@ -711,18 +585,12 @@ th(){
 	echo "Logout from all proxies."
       else
 	th_kill
-	tsh logout      
       fi
       ;;
     *)
       printf "\033[1mGeneral Usage:\033[0m\n\n"
-      printf "Run \033[1mth init\033[0m to start. This will set up all proxies & create files \n"
-      printf "which can be used to switch accounts. To switch account run \033[1mth switch|s\033[0m \n"
-      printf "which will prompt you with the various available accounts. Once finished \n"
-      printf "run \033[1mtsh kill\033[0m to log out of all proxies & clean up /tmp. \n\n"
+      printf "Probably some lines here\n\n"
       printf "\033[1mComplete option list:\033[0m\n\n"
-      printf "\033[1mth init   | i\033[0m : Initialise all accounts.\n"
-      printf "\033[1mth switch | s\033[0m : Switch active account.\n"
       printf "\033[1mth kube   | k\033[0m : Kubernetes login options.\n"
       printf "\033[1mth aws    | a\033[0m : AWS login options.\n"
       printf "\033[1mth terra  | t\033[0m : Log into yl-admin as sudo-admin.\n"
