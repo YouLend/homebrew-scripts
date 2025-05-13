@@ -594,6 +594,9 @@ th(){
 	tsh login --auth=ad --proxy=youlend.teleport.sh:443
       fi
       ;;
+    -v)
+      brew info th | tail -n +1 | grep -m1 "stable" | awk '{print $NF}'
+      ;;
     *)
       printf "\033[1;4mUsage:\033[0m\n\n"
       printf "\033[1mth kube   | k\033[0m : Kubernetes login.\n"
@@ -607,9 +610,5 @@ th(){
       printf "\033[1mQuickstart:\033[0m \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1384972392/TH+-+Teleport+Helper+Quick+Start\033[0m\n\n"
       printf "\033[1mDocs:\033[0m       \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1378517027/TH+-+Teleport+Helper+Docs\033[0m\n\n"
       printf "\033[1m--> (Hold CMD + Click to open links)\033[0m"
-
-      echo test
-
-
   esac
 }
