@@ -328,12 +328,12 @@ th(){
 	printf "\n\033[1mEnter request reason:\033[0m "
 	read reason
 	if [[ $app == "yl-production" ]]; then
-	  printf "\n✅ \033[1;32mAccess request sent for sudo_prod.\033[0m"
+	  printf "\n✅ \033[1;32mAccess request sent for sudo_prod.\033\n\n[0m"
 	  tsh request create --roles sudo_prod_role --reason $reason
 	  RAISED_ROLE="sudo_prod"
 	  return 0
 	elif [[ $app == "yl-usproduction" ]]; then
-	  printf "\n✅ \033[1;32mAccess request sent for sudo_usprod.\033[0m"
+	  printf "\n✅ \033[1;32mAccess request sent for sudo_usprod.\033\n\n[0m"
 	  tsh request create --roles sudo_usprod_role --reason $reason
 	  RAISED_ROLE="sudo_usprod"
 	  return 0
@@ -602,6 +602,11 @@ th(){
       printf "\033[1mth logout | l\033[0m : Clean up Teleport session.\n"
       printf "\033[1mth login     \033[0m : Simple log in to Teleport\033[0m\n"
       printf "\033[1m------------------------------------------------------------------------\033[0m\n"
-      printf "For specific instructions regarding any of the above, run \033[1mth <option> -h\033[0m\n"
+      printf "For specific instructions regarding any of the above, run \033[1mth <option> -h\033[0m\n\n"
+      printf "\033[1;4mPages:\033[0m\n\n"
+      printf "\033[1mQuickstart:\033[0m \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1384972392/TH+-+Teleport+Helper+Quick+Start\033[0m\n\n"
+      printf "\033[1mDocs:\033[0m       \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1378517027/TH+-+Teleport+Helper+Docs\033[0m\n\n"
+      printf "\033[1m--> (Hold CMD + Click to open links)\033[0m"
+      
   esac
 }
