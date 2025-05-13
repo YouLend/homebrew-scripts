@@ -607,6 +607,8 @@ th(){
       printf "\033[1mQuickstart:\033[0m \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1384972392/TH+-+Teleport+Helper+Quick+Start\033[0m\n\n"
       printf "\033[1mDocs:\033[0m       \033[1;34mhttps://youlend.atlassian.net/wiki/spaces/ISS/pages/1378517027/TH+-+Teleport+Helper+Docs\033[0m\n\n"
       printf "\033[1m--> (Hold CMD + Click to open links)\033[0m"
+
+      printf "\033[1;32m testing updates\033[0m"
       
   esac
 }
