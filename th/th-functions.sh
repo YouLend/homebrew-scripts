@@ -3,9 +3,26 @@
 # ============================================================
 th(){
   # ========================
+  # Helper - Latest Brew
+  # ========================
+  check_brew() {
+    LATEST_VERSION=$(brew info --json=v1 youlend/tools/th | jq -r '.[0].versions.stable')
+
+    INSTALLED_VERSION=$(brew list --versions th | awk '{print $2}')
+
+    if [[ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]]; then
+      printf "Not running latest version of th ($INSTALLED_VERSION < $LATEST_VERSION).\n"
+      printf "Upgrading...\n"
+      brew upgrade youlend/tools/th
+    else
+      printf "Already using latest version of th ($INSTALLED_VERSION).\n"
+    fi
+  }  
+  # ========================
   # Helper - Teleport Login
   # ========================
   th_login() {
+    check_brew
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
       printf "\033[1;32mAlready logged in to Teleport.\033[0m\n"
       return 0
@@ -659,7 +676,7 @@ th(){
       fi
       ;;
     -v)
-      brew info th | tail -n +1 | grep -m1 "stable" | awk '{print $NF}'
+      brew list --versions th | awk '{print $2}'
       ;;
     *)
       printf "\033[1;4mUsage:\033[0m\n\n"
