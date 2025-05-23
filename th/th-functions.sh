@@ -9,7 +9,7 @@ th(){
     printf "\n🔍 Checking for th updates...\n"
 
     # Run upgrade silently and capture the output
-    UPGRADE_OUTPUT=$(HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew upgrade youlend/tools/th 2>&1)
+    UPGRADE_OUTPUT=$(brew upgrade youlend/tools/th 2>&1)
 
     if echo "$UPGRADE_OUTPUT" | grep -q "already installed"; then
       printf "✅ \033[1;32mAlready using the latest version of th.\033[0m\n"
