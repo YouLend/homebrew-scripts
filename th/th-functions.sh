@@ -15,7 +15,7 @@ th(){
       printf "Upgrading...\n"
       brew upgrade youlend/tools/th
     else
-      printf "Already using latest version of th ($INSTALLED_VERSION).\n"
+      printf "\nAlready using latest version of th ($INSTALLED_VERSION).\n"
     fi
   }  
   # ========================
