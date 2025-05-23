@@ -83,19 +83,26 @@ th(){
   #================ Kubernetes ===================
   #===============================================
   tkube_elevated_login() {
+    local cluster="$1"
     while true; do
       printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
-      printf "\n\nDo you require access to \033[1mprod/usprod?\033[0m (y/n): "
+      printf "\n\nYou don't have access to \033[1m$cluster\033[0m."
+      printf "\n\nWould you like to raise a request? (y/n): "
       read elevated
       if [[ $elevated =~ ^[Yy]$ ]]; then
-	# Adds checks for new kubernetes roles here (us-production-eks)	
 
-	printf "\n\033[1mEnter your reason for request:\033[0m"
+	printf "\n\033[1mEnter your reason for request: \033[0m"
 	read reason
-	printf "\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
-	tsh request create --roles production-eks-clusters --reason "$reason"
-	ELEVATED="true"
-	tkube_interactive_login
+
+	if [ $cluster == 'live-prod-eks-blue' ]; then
+	  tsh request create --roles sudo_prod_eks_cluster --reason "$reason"
+	elif [ $cluster == 'live-usprod-eks-blue' ]; then
+	  tsh request create --roles sudo_usprod_eks_cluster --reason "$reason"
+	else
+	  printf "\nCluster doesn't exist"
+	fi
+
+	printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
 	return 0
 
       elif [[ $elevated =~ ^[Nn]$ ]]; then
@@ -113,12 +120,6 @@ th(){
   tkube_interactive_login() {
     th_login
 
-    if [[ "$ELEVATED" != "true" ]]; then
-      tkube_elevated_login
-    else
-      return 0
-    fi
-
     local output header clusters
     output=$(tsh kube ls -f text)
     header=$(echo "$output" | head -n 2)
@@ -129,10 +130,53 @@ th(){
       return 1
     fi
 
-    # Show cluster list and prompt for normal login
     printf "\n\033[1;4mAvailable Clusters:\033[0m\n\n"
     echo "$header"
-    echo "$clusters" | nl -w2 -s'. '
+
+    local index=1
+    local cluster_lines=()
+    local login_status=()
+
+    while IFS= read -r line; do
+      cluster_name=$(echo "$line" | awk '{print $1}')
+      
+      # Skip if cluster name is empty
+      if [ -z "$cluster_name" ]; then
+	continue
+      fi
+
+      cluster_lines+=("$line")
+
+      # Only try login for prod clusters
+      if [[ "$cluster_name" == *prod* ]]; then
+	if tsh kube login "$cluster_name" > /dev/null 2>&1; then
+	  login_status+=("fail")
+	else
+	  login_status+=("fail")
+	fi
+      else
+	# No login attempt — mark as "n/a"
+	login_status+=("n/a")
+      fi
+    done <<< "$clusters"
+
+    echo
+    for i in "${!cluster_lines[@]}"; do
+      line="${cluster_lines[$i]}"
+      status="${login_status[$i]}"
+
+      case "$status" in
+	ok)
+	  printf "%2d. %s\n" $((i + 1)) "$line"
+	  ;;
+	fail)
+	  printf "\033[90m%2d. %s\033[0m\n" $((i + 1)) "$line"
+	  ;;
+	n/a)
+	  printf "%2d. %s\n" $((i + 1)) "$line"
+	  ;;
+      esac
+    done
 
     printf "\n\033[1mSelect cluster (number):\033[0m "
     read choice
@@ -142,24 +186,25 @@ th(){
       return 1
     fi
 
-    local chosen_line login_cluster
-    chosen_line=$(echo "$clusters" | sed -n "${choice}p")
-    if [ -z "$chosen_line" ]; then
+    selected_index=$((choice - 1))
+    if [[ -z "${cluster_lines[$selected_index]}" ]]; then
       echo "Invalid selection."
       return 1
     fi
 
-    login_cluster=$(echo "$chosen_line" | awk '{print $1}')
-    if [ -z "$login_cluster" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
+    selected_cluster=$(echo "${cluster_lines[$selected_index]}" | awk '{print $1}')
+    selected_status="${login_status[$selected_index]}"
 
-    printf "\n\033[1mLogging you into:\033[0m \033[1;32m$login_cluster\033[0m\n\n"
-    tsh kube login "$login_cluster"
-    ELEVATED="false"
+    if [[ "$selected_status" == "fail" ]]; then
+      # Call your privilege escalation logic here
+      tkube_elevated_login $selected_cluster
+      tsh kube login $selected_cluster
+    else
+      echo -e "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
+      tsh kube login "$selected_cluster"
+      ELEVATED="false"
+    fi
   }
-
   # ========================
   # Helper - Local Handler 
   # ========================
@@ -547,6 +592,17 @@ th(){
   }
 
   #===============================================
+  #================== Mongo ======================
+  #===============================================
+
+  th_mongo() {
+    #th_login
+    echo "MONGO"
+
+  }
+
+
+  #===============================================
   #================ Main Handler =================
   #===============================================
   # Handle user input & redirect to the appropriate function
@@ -580,6 +636,14 @@ th(){
 	tawsp "$@"
       fi
       ;;
+    mongo|m)
+      if [[ "$2" == "-h" ]]; then
+	echo "Usage:"
+      else
+	shift
+	th_mongo "$@"
+      fi
+      ;;
     logout|l)
       if [[ "$2" == "-h" ]]; then
 	echo "Logout from all proxies."
@@ -601,6 +665,7 @@ th(){
       printf "\033[1;4mUsage:\033[0m\n\n"
       printf "\033[1mth kube   | k\033[0m : Kubernetes login.\n"
       printf "\033[1mth aws    | a\033[0m : AWS login.\n"
+      printf "\033[1mth mongo  | m\033[0m : Log into our various Mongo databases.\n"
       printf "\033[1mth terra  | t\033[0m : Log into yl-admin as sudo-admin for use with Terraform/Grunt.\n"
       printf "\033[1mth logout | l\033[0m : Clean up Teleport session.\n"
       printf "\033[1mth login     \033[0m : Simple log in to Teleport\033[0m\n"
