@@ -6,16 +6,15 @@ th(){
   # Helper - Latest Brew
   # ========================
   check_brew() {
-    LATEST_VERSION=$(brew info --json=v1 youlend/tools/th | jq -r '.[0].versions.stable')
+    printf "\n🔍 Checking for th updates...\n"
 
-    INSTALLED_VERSION=$(brew list --versions th | awk '{print $2}')
+    # Run upgrade silently and capture the output
+    UPGRADE_OUTPUT=$(brew upgrade youlend/tools/th 2>&1)
 
-    if [[ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]]; then
-      printf "Not running latest version of th ($INSTALLED_VERSION < $LATEST_VERSION).\n"
-      printf "Upgrading...\n"
-      brew upgrade youlend/tools/th
+    if echo "$UPGRADE_OUTPUT" | grep -q "already installed"; then
+      printf "✅ \033[1;32mAlready using the latest version of th.\033[0m\n"
     else
-      printf "\nAlready using latest version of th ($INSTALLED_VERSION).\n"
+      printf "⬆️  \033[1;34mth was upgraded to the latest version.\033[0m\n"
     fi
   }  
   # ========================
