@@ -8,7 +8,7 @@ th(){
   check_brew() {
     printf "🔍 Checking for th updates...\n"
     
-    brew update 2>&1
+    brew update > /dev/null 2>&1
     # Run upgrade silently and capture the output
     UPGRADE_OUTPUT=$(brew upgrade YouLend/tools/th 2>&1)
 
