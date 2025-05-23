@@ -13,9 +13,9 @@ th(){
     UPGRADE_OUTPUT=$(brew upgrade YouLend/tools/th 2>&1)
 
     if echo "$UPGRADE_OUTPUT" | grep -q "already installed"; then
-      printf "\n✅ \033[1;32mAlready using the latest version of th.\033[0m\n\n"
+      printf "\n✅ \033[1mAlready using the latest version of th.\033[0m\n\n"
     else
-      printf "\n⬆️ \033[1;34mth was upgraded to the latest version.\033[0m\n\n"
+      printf "\n⬆️ \033[1mth was upgraded to the latest version.\033[0m\n\n"
     fi
   }  
   # ========================
