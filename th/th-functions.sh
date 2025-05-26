@@ -10,12 +10,12 @@ th(){
     # Run upgrade silently and capture the output
     UPGRADE_OUTPUT=$(brew outdated th 2>&1)
 
-    if echo "$UPGRADE_OUTPUT" | grep -q "already installed"; then
-      printf "\n✅ \033[1mAlready using the latest version of th.\033[0m\n\n"
+    if [[ -z $UPGRADE_OUTPUT ]]; then
+      printf "\n✅ \033[1mAlready using the latest version!\033[0m\n\n"
     else
       printf "\n⬆️ \033[1mth is outdated, Upgrading to the latest version.\033[0m\n\n"
-      brew upgrade youlend/tools/th 2>&1
-      printf "\n✅ \033[1mUpdate successful.\033[0m\n\n"
+      brew upgrade youlend/tools/th &> /dev/null
+      printf "\n\033[1;32mUpdate successful.\033[0m\n\n"
     fi
   }  
   # ========================
@@ -24,7 +24,7 @@ th(){
   th_login() {
     check_brew
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-      printf "\033[1;32mAlready logged in to Teleport.\033[0m\n"
+      printf "✅ \033[1mAlready logged in to Teleport!\033[0m\n"
       return 0
     fi
     echo "Logging you into Teleport..."
@@ -32,7 +32,7 @@ th(){
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do
       if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-	printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
+	printf "\n\033[1;32mLogged in successfully!\033[0m\n"
 	return 0
       fi
       sleep 0.5
