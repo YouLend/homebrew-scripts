@@ -7,15 +7,15 @@ th(){
   # ========================
   check_brew() {
     printf "🔍 Checking for th updates...\n"
-    
-    brew update > /dev/null 2>&1
     # Run upgrade silently and capture the output
-    UPGRADE_OUTPUT=$(brew upgrade YouLend/tools/th 2>&1)
+    UPGRADE_OUTPUT=$(brew outdated th 2>&1)
 
     if echo "$UPGRADE_OUTPUT" | grep -q "already installed"; then
       printf "\n✅ \033[1mAlready using the latest version of th.\033[0m\n\n"
     else
-      printf "\n⬆️ \033[1mth was upgraded to the latest version.\033[0m\n\n"
+      printf "\n⬆️ \033[1mth is outdated, Upgrading to the latest version.\033[0m\n\n"
+      brew upgrade youlend/tools/th 2>&1
+      printf "\n✅ \033[1mUpdate successful.\033[0m\n\n"
     fi
   }  
   # ========================
