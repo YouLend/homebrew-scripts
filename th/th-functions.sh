@@ -103,7 +103,7 @@ th(){
     local cluster="$1"
     while true; do
       printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
-      printf "\n\nYou don't have access to \033[1m$cluster\033[0m."
+      printf "\n\nYou don't have write access to \033[1m$cluster\033[0m."
       printf "\n\nWould you like to raise a request? (y/n): "
       read elevated
       if [[ $elevated =~ ^[Yy]$ ]]; then
@@ -520,16 +520,16 @@ th(){
       printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
       printf "\n\nNo privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
       if raise_request "$app"; then
-	local role="$RAISED_ROLE"
-	printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$role\033[0m!"
-	tsh apps login "$app" --aws-role "$role" > /dev/null 2>&1
-	printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
-	create_proxy
+        local role="$RAISED_ROLE"
+        printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$role\033[0m!"
+        tsh apps login "$app" --aws-role "$role" > /dev/null 2>&1
+        printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
+        create_proxy
       else
-	printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m!" 
-	tsh apps login "$app" > /dev/null 2>&1
-	printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
-	return 
+        printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m!" 
+        tsh apps login "$app" > /dev/null 2>&1
+        printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
+        return 
       fi
       return
     fi
@@ -609,12 +609,95 @@ th(){
   }
 
   #===============================================
-  #================== Mongo ======================
+  #================== databases ==================
   #===============================================
 
-  th_mongo() {
-    #th_login
-    echo "MONGO"
+  th_db() {
+    th_login
+
+    local output header apps
+
+    # Get the list of apps.
+    output=$(tsh db ls -f text)
+    header=$(echo "$output" | head -n 2)
+    apps=$(echo "$output" | tail -n +3)
+
+    if [ -z "$apps" ]; then
+      echo "No apps available."
+      return 1
+    fi
+
+    # Display header and numbered list of apps.
+    printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
+    echo "$header"
+    echo "$apps" | nl -w2 -s'. '
+
+    # Prompt for app selection.
+    echo
+    printf "\033[1mSelect database (number):\033[0m "
+    read app_choice
+    if [ -z "$app_choice" ]; then
+      echo "No selection made. Exiting."
+      return 1
+    fi
+
+        local chosen_line app
+    chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
+    if [ -z "$chosen_line" ]; then
+      echo "Invalid selection."
+      return 1
+    fi
+
+    # If the first column is ">", use the second column; otherwise, use the first.
+    app=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
+    if [ -z "$app" ]; then
+      echo "Invalid selection."
+      return 1
+    fi
+
+    printf "\nLogging into: \033[1;32m$app\033[0m\n"
+
+    tsh db login "$app" > /dev/null 2>&1
+    printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
+    # Check if the login was successful
+    
+    while true; do
+      printf "\nWould you like to connect to \033[1;32m$app\033[0m? (y/n): "
+      read connect
+      if [[ $connect =~ ^[Yy]$ ]]; then
+        output=$(tsh db connect "$app" 2>&1)  
+        if echo "$output" | grep -q 'exec: "mongosh": executable file not found in \$PATH'; then
+          printf "\n❌ MongoDB client not found." 
+          while true; do  
+            printf "\n\nWould you like to install it via brew? (y/n): "
+            read install
+            if [[ $install =~ ^[Yy]$ ]]; then
+              echo
+              brew install mongosh
+              printf "\n✅ \033[1;32mMongoDB client installed successfully!\033[0m\n"
+              printf "\n\033[1mConnecting to \033[1;32m$app\033[0m...\n"
+              echo
+              tsh db connect "$app" 2>&1
+              return 0
+            elif [[ $install =~ ^[Nn]$ ]]; then
+              printf "\nMongoDB client installation skipped.\n"
+              return 0
+            else
+              printf "\nInvalid input. Please enter Y or N."
+            fi
+          done
+        else
+          printf "\n\033[1mConnecting to \033[1;32m$app\033[0m...\n"
+          tsh db connect "$app" 2>&1
+          return
+        fi
+      elif [[ $connect =~ ^[Nn]$ ]]; then  # <-- FIXED typo from $proxy to $connect
+        printf "\nDatabase connection skipped.\n"
+        return 0
+      else
+        printf "\nInvalid input. Please enter Y or N."
+      fi
+    done
 
   }
 
@@ -653,12 +736,12 @@ th(){
 	tawsp "$@"
       fi
       ;;
-    mongo|m)
+    db|d)
       if [[ "$2" == "-h" ]]; then
 	echo "Usage:"
       else
 	shift
-	th_mongo "$@"
+	th_db "$@"
       fi
       ;;
     logout|l)
