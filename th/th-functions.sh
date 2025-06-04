@@ -1,28 +1,11 @@
 # ============================================================
 # 		    Teleport CLI shortcuts
 # ============================================================
-th(){
-  # ========================
-  # Helper - Latest Brew
-  # ========================
-  check_brew() {
-    printf "🔍 Checking for th updates...\n"
-    # Run upgrade silently and capture the output
-    UPGRADE_OUTPUT=$(brew outdated th 2>&1)
-
-    if [[ -z $UPGRADE_OUTPUT ]]; then
-      printf "\n✅ \033[1mAlready using the latest version!\033[0m\n\n"
-    else
-      printf "\n⬆️ \033[1mth is outdated, Upgrading to the latest version.\033[0m\n\n"
-      brew upgrade youlend/tools/th &> /dev/null
-      printf "\n\033[1;32mUpdate successful.\033[0m\n\n"
-    fi
-  }  
+th(){ 
   # ========================
   # Helper - Teleport Login
   # ========================
   th_login() {
-    check_brew
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
       printf "✅ \033[1mAlready logged in to Teleport!\033[0m\n"
       return 0
@@ -32,8 +15,8 @@ th(){
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do
       if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-	printf "\n\033[1;32mLogged in successfully!\033[0m\n"
-	return 0
+        printf "\n\033[1;32mLogged in successfully!\033[0m\n"
+        return 0
       fi
       sleep 0.5
     done
@@ -107,27 +90,26 @@ th(){
       printf "\n\nWould you like to raise a request? (y/n): "
       read elevated
       if [[ $elevated =~ ^[Yy]$ ]]; then
+        printf "\n\033[1mEnter your reason for request: \033[0m"
+        read reason
 
-	printf "\n\033[1mEnter your reason for request: \033[0m"
-	read reason
+        if [ $cluster == 'live-prod-eks-blue' ]; then
+          tsh request create --roles sudo_prod_eks_cluster --reason "$reason"
+        elif [ $cluster == 'live-usprod-eks-blue' ]; then
+          tsh request create --roles sudo_usprod_eks_cluster --reason "$reason"
+        else
+          printf "\nCluster doesn't exist"
+        fi
 
-	if [ $cluster == 'live-prod-eks-blue' ]; then
-	  tsh request create --roles sudo_prod_eks_cluster --reason "$reason"
-	elif [ $cluster == 'live-usprod-eks-blue' ]; then
-	  tsh request create --roles sudo_usprod_eks_cluster --reason "$reason"
-	else
-	  printf "\nCluster doesn't exist"
-	fi
-
-	printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
-	return 0
+        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
+        return 0
 
       elif [[ $elevated =~ ^[Nn]$ ]]; then
-	echo
-	echo "Request creation skipped."
-	return 0
+        echo
+        echo "Request creation skipped."
+        return 0
       else
-	echo "Invalid input. Please enter y or n."
+        echo "Invalid input. Please enter y or n."
       fi
     done
   }
@@ -159,21 +141,21 @@ th(){
       
       # Skip if cluster name is empty
       if [ -z "$cluster_name" ]; then
-	continue
+	      continue
       fi
 
       cluster_lines+=("$line")
 
       # Only try login for prod clusters
       if [[ "$cluster_name" == *prod* ]]; then
-	if tsh kube login "$cluster_name" > /dev/null 2>&1; then
-	  login_status+=("fail")
-	else
-	  login_status+=("fail")
-	fi
+        if tsh kube login "$cluster_name" > /dev/null 2>&1; then
+          login_status+=("fail")
+        else
+          login_status+=("fail")
+        fi
       else
 	# No login attempt — mark as "n/a"
-	login_status+=("n/a")
+	      login_status+=("n/a")
       fi
     done <<< "$clusters"
 
@@ -183,15 +165,15 @@ th(){
       status="${login_status[$i]}"
 
       case "$status" in
-	ok)
-	  printf "%2d. %s\n" $((i + 1)) "$line"
-	  ;;
-	fail)
-	  printf "\033[90m%2d. %s\033[0m\n" $((i + 1)) "$line"
-	  ;;
-	n/a)
-	  printf "%2d. %s\n" $((i + 1)) "$line"
-	  ;;
+	      ok)
+          printf "%2d. %s\n" $((i + 1)) "$line"
+          ;;
+	      fail)
+          printf "\033[90m%2d. %s\033[0m\n" $((i + 1)) "$line"
+          ;;
+        n/a)
+          printf "%2d. %s\n" $((i + 1)) "$line"
+          ;;
       esac
     done
 
@@ -233,39 +215,39 @@ th(){
 
     case "$1" in
       -l)
-	tsh kube ls -f text
-	;;
+        tsh kube ls -f text
+        ;;
       -s)
-	shift
-	if [ $# -eq 0 ]; then
-	  echo "Missing arguments for -s"
-	  return 1
-	fi
-	tsh kube sessions "$@"
-	;;
+        shift
+        if [ $# -eq 0 ]; then
+          echo "Missing arguments for -s"
+          return 1
+        fi
+        tsh kube sessions "$@"
+        ;;
       -e)
-	shift
-	if [ $# -eq 0 ]; then
-	  echo "Missing arguments for -e"
-	  return 1
-	fi
-	tsh kube exec "$@"
-	;;
+        shift
+        if [ $# -eq 0 ]; then
+          echo "Missing arguments for -e"
+          return 1
+        fi
+        tsh kube exec "$@"
+        ;;
       -j)
-	shift
-	if [ $# -eq 0 ]; then
-	  echo "Missing arguments for -j"
-	  return 1
-	fi
-	tsh kube join "$@"
-	;;
+        shift
+        if [ $# -eq 0 ]; then
+          echo "Missing arguments for -j"
+          return 1
+        fi
+        tsh kube join "$@"
+        ;;
       *)
-	echo "Usage:"
-	echo "-l : List all clusters"
-	echo "-s : List all sessions"
-	echo "-e : Execute command"
-	echo "-j : Join something"
-	;;
+        echo "Usage:"
+        echo "-l : List all clusters"
+        echo "-s : List all sessions"
+        echo "-e : Execute command"
+        echo "-j : Join something"
+      ;;
     esac
   }
 
@@ -276,7 +258,7 @@ th(){
   # ========================
   # Helper - Get Credentials
   # ========================
-  get_credentials() {
+  create_proxy() {
     # Enable nullglob in Zsh to avoid errors on unmatched globs
     if [ -n "$ZSH_VERSION" ]; then
       setopt NULL_GLOB
@@ -292,9 +274,7 @@ th(){
 
     local log_file="/tmp/tsh_proxy_${app}.log"
 
-    # Kill proxy here - Future implementation
-    # pkill -f "tsh proxy" 2>/dev/null
-    # sleep 2
+    # pkill -f "tsh proxy aws" 2>/dev/null
 
     # Clean up any matching temp files — won't error in Zsh or Bash now
     for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
@@ -313,8 +293,8 @@ th(){
       sleep 0.5
       wait_time=$((wait_time + 1))
       if (( wait_time >= 20 )); then
-	echo "Timed out waiting for AWS credentials."
-	return 1
+        echo "Timed out waiting for AWS credentials."
+        return 1
       fi
     done
 
@@ -357,9 +337,9 @@ th(){
   } 
 
   # ========================
-  # Helper - Create Proxy
+  # Helper - Create Proxy -- Unused
   # ========================
-  create_proxy(){
+  create_proxy.disabled(){
     while true; do
       printf "\n\n======================== \033[1mProxy Creation\033[0m ============================"
       printf "\n\nUsing a proxy will allow you to use \033[1maws\033[0m commands\n"
@@ -367,13 +347,13 @@ th(){
       printf "\n\n\033[1mWould you like to create a proxy? (y/n):\033[0m "
       read proxy
       if [[ $proxy =~ ^[Yy]$ ]]; then
-	get_credentials
-	break
-      elif [[ $proxy =~ ^[Nn]$ ]]; then
-	printf "\nProxy creation skipped."
-	break
+        get_credentials
+        break
+            elif [[ $proxy =~ ^[Nn]$ ]]; then
+              printf "\nProxy creation skipped."
+        break
       else
-	echo "Invalid input. Please enter Y or N."
+	      echo "Invalid input. Please enter Y or N."
       fi
     done
   }
@@ -387,63 +367,28 @@ th(){
       printf "\n\n\033[1mWould you like to raise a privilege request? (y/n):\033[0m "
       read request
       if [[ $request =~ ^[Yy]$ ]]; then
-	printf "\n\033[1mEnter request reason:\033[0m "
-	read reason
-	if [[ $app == "yl-production" ]]; then
-	  printf "\n✅ \033[1;32mAccess request sent for sudo_prod.\033\n\n[0m"
-	  tsh request create --roles sudo_prod_role --reason $reason
-	  RAISED_ROLE="sudo_prod"
-	  return 0
-	elif [[ $app == "yl-usproduction" ]]; then
-	  printf "\n✅ \033[1;32mAccess request sent for sudo_usprod.\033\n\n[0m"
-	  tsh request create --roles sudo_usprod_role --reason $reason
-	  RAISED_ROLE="sudo_usprod"
-	  return 0
-	else
-	  printf "\nNo associated roles"
-	  return 1 
-	fi
-	return 1
-	break
-      elif [[ $request =~ ^[Nn]$ ]]; then
-	return 1
+        printf "\n\033[1mEnter request reason:\033[0m "
+        read reason
+        if [[ $app == "yl-production" ]]; then
+          printf "\n✅ \033[1;32mAccess request sent for sudo_prod.\033\n\n[0m"
+          tsh request create --roles sudo_prod_role --reason $reason
+          RAISED_ROLE="sudo_prod"
+          return 0
+        elif [[ $app == "yl-usproduction" ]]; then
+          printf "\n✅ \033[1;32mAccess request sent for sudo_usprod.\033\n\n[0m"
+          tsh request create --roles sudo_usprod_role --reason $reason
+          RAISED_ROLE="sudo_usprod"
+          return 0
+        else
+          printf "\nNo associated roles"
+          return 1 
+        fi
+        return 1
+        break
+            elif [[ $request =~ ^[Nn]$ ]]; then
+        return 1
       else
-	printf "\n❌ \033[1;31mInvalid input. Please enter Y or N.\033[0m\n"
-      fi
-    done
-  }
-
-  # ========================
-  # Helper - Login via req --- Not currently in use
-  # ========================
-  request_login() {
-    # Loop until valid input (y/n)
-    while true; do
-      echo
-      read -p "Have a request ID? (y/n): " request
-      if [[ $request =~ ^[Yy]$ ]]; then
-	echo
-	tsh logout
-	echo
-	while true; do
-	  echo
-	  read -p "Enter your request ID: " id
-	  if [[ -n "$id" ]]; then
-	    echo
-	    echo "Logging in with request ID: $id"
-	    tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$id"
-	    return 0
-	  else
-	    echo
-	    echo "Request ID cannot be empty. Please try again."
-	  fi
-	done
-      elif [[ $request =~ ^[Nn]$ ]]; then
-	raise_request $app
-	return 0
-      else
-	echo
-	echo "Invalid input. Please enter y or n."
+        printf "\n❌ \033[1;31mInvalid input. Please enter Y or N.\033[0m\n"
       fi
     done
   }
@@ -525,6 +470,7 @@ th(){
         tsh apps login "$app" --aws-role "$role" > /dev/null 2>&1
         printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
         create_proxy
+        return
       else
         printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m!" 
         tsh apps login "$app" > /dev/null 2>&1
@@ -574,7 +520,7 @@ th(){
     printf "\nLogging you into \033[1;32m$app\033[0m as \033[1;32m$role_name\033[0m"
     tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
 
-    create_proxy 
+    create_proxy
   }
 
   # ========================
@@ -587,12 +533,12 @@ th(){
     fi
     case "$1" in
       -l)
-	tsh apps ls -f text
+	      tsh apps ls -f text
       ;;
       *)
-	echo "Usage:"
-	echo "-i : Interactive login"
-	echo "-l : List all accounts"
+        echo "Usage:"
+        echo "-i : Interactive login"
+        echo "-l : List all accounts"
     esac
   }
 
@@ -612,57 +558,37 @@ th(){
   #================== databases ==================
   #===============================================
 
-  th_db() {
-    th_login
-
-    local output header apps
-
-    # Get the list of apps.
-    output=$(tsh db ls -f text)
-    header=$(echo "$output" | head -n 2)
-    apps=$(echo "$output" | tail -n +3)
-
-    if [ -z "$apps" ]; then
-      echo "No apps available."
-      return 1
-    fi
-
-    # Display header and numbered list of apps.
-    printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
-    echo "$header"
-    echo "$apps" | nl -w2 -s'. '
-
-    # Prompt for app selection.
-    echo
-    printf "\033[1mSelect database (number):\033[0m "
-    read app_choice
-    if [ -z "$app_choice" ]; then
-      echo "No selection made. Exiting."
-      return 1
-    fi
-
-        local chosen_line app
-    chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
-    if [ -z "$chosen_line" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
-
-    # If the first column is ">", use the second column; otherwise, use the first.
-    app=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
-    if [ -z "$app" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
-
-    printf "\nLogging into: \033[1;32m$app\033[0m\n"
-
-    tsh db login "$app" > /dev/null 2>&1
-    printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
-    # Check if the login was successful
-    
+  thdb_elevated_login() {
+    local cluster="$1"
     while true; do
-      printf "\nWould you like to connect to \033[1;32m$app\033[0m? (y/n): "
+      printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
+      printf "\n\nYou don't have access to any databases..."
+      printf "\n\nWould you like to raise a request? (y/n): "
+      read elevated
+      if [[ $elevated =~ ^[Yy]$ ]]; then
+
+        printf "\n\033[1mEnter your reason for request: \033[0m"
+        read reason
+
+        tsh request create --roles atlas-read-only --reason "$reason"
+
+        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
+        return 0
+
+      elif [[ $elevated =~ ^[Nn]$ ]]; then
+        echo
+        echo "Request creation skipped."
+        exit_db="TRUE"
+        return 0 
+      else
+        echo "Invalid input. Please enter y or n."
+      fi
+    done
+  }
+
+  th_db_connect(){
+    while true; do
+      printf "\nWould you like to connect to \033[1m$app\033[0m? (y/n): "
       read connect
       if [[ $connect =~ ^[Yy]$ ]]; then
         output=$(tsh db connect "$app" 2>&1)  
@@ -691,14 +617,87 @@ th(){
           tsh db connect "$app" 2>&1
           return
         fi
-      elif [[ $connect =~ ^[Nn]$ ]]; then  # <-- FIXED typo from $proxy to $connect
+      elif [[ $connect =~ ^[Nn]$ ]]; then
         printf "\nDatabase connection skipped.\n"
         return 0
       else
         printf "\nInvalid input. Please enter Y or N."
       fi
     done
+  }
 
+  th_db() {
+    th_login
+
+    # Get the list of apps.
+    output=$(tsh db ls)
+    apps=$(echo "$output" | tail -n +3)
+
+    if [ -z "$check_apps" ]; then
+      thdb_elevated_login
+    fi
+
+    if [ $exit_db == "TRUE" ]; then
+      printf "\n\033[1;31mExiting database selection.\033[0m\n"
+      exit_db="FALSE"
+      return 0
+    fi
+    
+    local output header apps
+
+    output=$(tsh db ls -f text)
+    header=$(echo "$output" | head -n 2)
+    apps=$(echo "$output" | tail -n +3)
+
+    # Display header and numbered list of apps.
+    printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
+    echo "$header"
+    echo "$apps" | nl -w2 -s'. '
+
+    # Prompt for app selection.
+    echo
+    printf "\033[1mSelect database (number):\033[0m "
+    read app_choice
+    if [ -z "$app_choice" ]; then
+      echo "No selection made. Exiting."
+      return 1
+    fi
+
+    local chosen_line app
+    chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
+    if [ -z "$chosen_line" ]; then
+      echo "Invalid selection."
+      return 1
+    fi
+
+    # If the first column is ">", use the second column; otherwise, use the first.
+    app=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
+    if [ -z "$app" ]; then
+      echo "Invalid selection."
+      return 1
+    fi
+
+    printf "\nLogging into: \033[1;32m$app\033[0m\n"
+    return 1
+    exit
+
+    case "$app" in
+      "yl-usprod")
+        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+        ;;
+      "yl-prod")
+        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+        ;;
+      "yl-dev")
+        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+        ;;
+    esac
+
+    tsh db login "$app" > /dev/null 2>&1
+    printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
+
+    th_db_connect "$app"
+    
   }
 
 
@@ -709,53 +708,53 @@ th(){
   case "$1" in
     kube|k)
       if [[ "$2" == "-h" ]]; then
-	echo "Usage:"
-	echo "-l : List all kubernetes clusters"
-	echo "-s : List all current sessions"
-	echo "-e : Execute a command"
-	echo "-j : Join something"
+        echo "Usage:"
+        echo "-l : List all kubernetes clusters"
+        echo "-s : List all current sessions"
+        echo "-e : Execute a command"
+        echo "-j : Join something"
       else
-	shift
-	tkube "$@"
+        shift
+        tkube "$@"
       fi
       ;;
     terra|t)
       if [[ "$2" == "-h" ]]; then
-	echo "Logs into yl-admin as sudo-admin"
+	      echo "Logs into yl-admin as sudo-admin"
       else
-	shift
-	terraform_login "$@"
+        shift
+        terraform_login "$@"
       fi
       ;;
     aws|a)
       if [[ "$2" == "-h" ]]; then
-	echo "Usage:"
-	echo "-l : List all accounts"
+        echo "Usage:"
+        echo "-l : List all accounts"
       else
-	shift
-	tawsp "$@"
+        shift
+        tawsp "$@"
       fi
       ;;
     db|d)
       if [[ "$2" == "-h" ]]; then
-	echo "Usage:"
+	      echo "Usage:"
       else
-	shift
-	th_db "$@"
+        shift
+        th_db "$@"
       fi
       ;;
     logout|l)
       if [[ "$2" == "-h" ]]; then
-	echo "Logout from all proxies."
+	      echo "Logout from all proxies."
       else
-	th_kill
+	      th_kill
       fi
       ;;
     login)
       if [[ "$2" == "-h" ]]; then
-	echo "Log in to Teleport."
+	      echo "Log in to Teleport."
       else
-	tsh login --auth=ad --proxy=youlend.teleport.sh:443
+	      tsh login --auth=ad --proxy=youlend.teleport.sh:443
       fi
       ;;
     -v)
@@ -763,11 +762,11 @@ th(){
       ;;
     *)
       printf "\033[1;4mUsage:\033[0m\n\n"
-      printf "\033[1mth kube   | k\033[0m : Kubernetes login.\n"
-      printf "\033[1mth aws    | a\033[0m : AWS login.\n"
-      printf "\033[1mth mongo  | m\033[0m : Log into our various Mongo databases.\n"
-      printf "\033[1mth terra  | t\033[0m : Log into yl-admin as sudo-admin for use with Terraform/Grunt.\n"
-      printf "\033[1mth logout | l\033[0m : Clean up Teleport session.\n"
+      printf "\033[1mth kube      | k\033[0m : Kubernetes login.\n"
+      printf "\033[1mth aws       | a\033[0m : AWS login.\n"
+      printf "\033[1mth database  | d\033[0m : Log into our various databases.\n"
+      printf "\033[1mth terra     | t\033[0m : Log into yl-admin as sudo-admin for use with Terraform/Grunt.\n"
+      printf "\033[1mth logout    | l\033[0m : Clean up Teleport session.\n"
       printf "\033[1mth login     \033[0m : Simple log in to Teleport\033[0m\n"
       printf "\033[1m------------------------------------------------------------------------\033[0m\n"
       printf "For specific instructions regarding any of the above, run \033[1mth <option> -h\033[0m\n\n"
