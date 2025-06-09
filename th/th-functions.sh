@@ -73,6 +73,7 @@ th(){
     printf "\n💀 \033[0mKilling all running tsh proxies...\033[0m"
     # Kill all tsh proxy aws processes
     ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
+    ps aux | grep '[t]sh proxy db' | awk '{print $2}' | xargs kill 2>/dev/null
     tsh logout > /dev/null 2>&1
     
     tsh apps logout > /dev/null 2>&1
@@ -109,7 +110,7 @@ th(){
         echo "Request creation skipped."
         return 0
       else
-        echo "Invalid input. Please enter y or n."
+        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
       fi
     done
   }
@@ -154,7 +155,7 @@ th(){
           login_status+=("fail")
         fi
       else
-	# No login attempt — mark as "n/a"
+	      # No login attempt — mark as "n/a"
 	      login_status+=("n/a")
       fi
     done <<< "$clusters"
@@ -187,7 +188,7 @@ th(){
 
     selected_index=$((choice - 1))
     if [[ -z "${cluster_lines[$selected_index]}" ]]; then
-      echo "Invalid selection."
+      printf "\n\033[31mInvalid selection\033[0m\n"
       return 1
     fi
 
@@ -273,10 +274,9 @@ th(){
     fi
 
     local log_file="/tmp/tsh_proxy_${app}.log"
-
+    # Try other methods to kill existing processes
     # pkill -f "tsh proxy aws" 2>/dev/null
 
-    # Clean up any matching temp files — won't error in Zsh or Bash now
     for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
       [ -e "$f" ] && rm -f "$f"
     done
@@ -353,7 +353,7 @@ th(){
               printf "\nProxy creation skipped."
         break
       else
-	      echo "Invalid input. Please enter Y or N."
+	      printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
       fi
     done
   }
@@ -388,7 +388,7 @@ th(){
             elif [[ $request =~ ^[Nn]$ ]]; then
         return 1
       else
-        printf "\n❌ \033[1;31mInvalid input. Please enter Y or N.\033[0m\n"
+        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
       fi
     done
   }
@@ -426,16 +426,20 @@ th(){
     fi
 
     local chosen_line app
-    chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
-    if [ -z "$chosen_line" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
+    chosen_line=""
+    while [ -z "$chosen_line" ]; do
+      chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
+      if [ -z "$chosen_line" ]; then
+        printf "\n\033[31mInvalid selection\033[0m\n"
+        printf "\n\033[1mSelect Application (number):\033[0m "
+        read app_choice
+      fi
+    done
 
     # If the first column is ">", use the second column; otherwise, use the first.
     app=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
     if [ -z "$app" ]; then
-      echo "Invalid selection."
+      printf "\n\033[31mInvalid selection\033[0m\n"
       return 1
     fi
 
@@ -459,13 +463,16 @@ th(){
     role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
 
     if [ -z "$role_section" ]; then
-
       local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
 
       printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
       printf "\n\nNo privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
       if raise_request "$app"; then
         local role="$RAISED_ROLE"
+        printf "\n\033[1mRe-Authenticating\033[0m!"
+        tsh logout
+        th_login
+
         printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$role\033[0m!"
         tsh apps login "$app" --aws-role "$role" > /dev/null 2>&1
         printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
@@ -475,6 +482,7 @@ th(){
         printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m!" 
         tsh apps login "$app" > /dev/null 2>&1
         printf "\n\n✅ \033[1;32m Logged in successfully!\033[0m" 
+        create_proxy
         return 
       fi
       return
@@ -505,15 +513,19 @@ th(){
     fi
 
     local chosen_role_line role_name
-    chosen_role_line=$(echo "$roles_list" | sed -n "${role_choice}p")
-    if [ -z "$chosen_role_line" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
+    chosen_role_line=""
+    while [ -z "$chosen_role_line" ]; do
+      chosen_role_line=$(echo "$roles_list" | sed -n "${role_choice}p")
+      if [ -z "$chosen_role_line" ]; then
+        printf "\n\033[31mInvalid selection\033[0m\n"
+        printf "\n\033[1mSelect role (number):\033[0m "
+        read role_choice
+      fi
+    done
 
     role_name=$(echo "$chosen_role_line" | awk '{print $1}')
     if [ -z "$role_name" ]; then
-      echo "Invalid selection."
+      printf "\n\033[31mInvalid selection\033[0m\n"
       return 1
     fi
 
@@ -548,9 +560,9 @@ th(){
   terraform_login() {
     th_login     
     tsh apps logout > /dev/null 2>&1
-    printf "\n\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin.\033[0m"
+    printf "\n\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin\033[0m\n"
     tsh apps login "yl-admin" --aws-role "sudo_admin" > /dev/null 2>&1
-    get_credentials
+    create_proxy
     printf "\n\n✅ \033[1;32mLogged in successfully!\033[0m"
   }
 
@@ -558,7 +570,7 @@ th(){
   #================== databases ==================
   #===============================================
 
-  thdb_elevated_login() {
+  th_db_elevated_login() {
     local cluster="$1"
     while true; do
       printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
@@ -570,9 +582,13 @@ th(){
         printf "\n\033[1mEnter your reason for request: \033[0m"
         read reason
 
-        tsh request create --roles atlas-read-only --reason "$reason"
+        request_output=$(tsh request create --roles atlas-read-only --reason "$reason" 2>&1 | tee /dev/tty)
+
+        # 2. Extract request ID
+        REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
 
         printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
+
         return 0
 
       elif [[ $elevated =~ ^[Nn]$ ]]; then
@@ -581,47 +597,53 @@ th(){
         exit_db="TRUE"
         return 0 
       else
-        echo "Invalid input. Please enter y or n."
+        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
       fi
     done
   }
 
-  th_db_connect(){
+  th_db_connect.disabled(){
+    local db="$1"
     while true; do
-      printf "\nWould you like to connect to \033[1m$app\033[0m? (y/n): "
+      # Check if users wishes to connect to the selected database
+      printf "\nWould you like to connect to \033[1m$db\033[0m? (y/n): "
       read connect
       if [[ $connect =~ ^[Yy]$ ]]; then
-        output=$(tsh db connect "$app" 2>&1)  
-        if echo "$output" | grep -q 'exec: "mongosh": executable file not found in \$PATH'; then
-          printf "\n❌ MongoDB client not found." 
+        # Check whether the user already has the MongoDB client installed
+        if ! command -v mongosh >/dev/null 2>&1; then
+          printf "\n❌ MongoDB client not found. MongoSH is required to connect to MongoDB databases.\n" 
+          # Ask whether the user wants to install it via brew
           while true; do  
-            printf "\n\nWould you like to install it via brew? (y/n): "
+            printf "\nWould you like to install it via brew? (y/n): "
             read install
             if [[ $install =~ ^[Yy]$ ]]; then
+              # Install the MongoDB client using brew & connect to the selected database
               echo
               brew install mongosh
               printf "\n✅ \033[1;32mMongoDB client installed successfully!\033[0m\n"
-              printf "\n\033[1mConnecting to \033[1;32m$app\033[0m...\n"
+              printf "\n\033[1mConnecting to \033[1;32m$db\033[0m...\n"
               echo
-              tsh db connect "$app" 2>&1
+              tsh db connect "$db"
               return 0
             elif [[ $install =~ ^[Nn]$ ]]; then
               printf "\nMongoDB client installation skipped.\n"
               return 0
             else
-              printf "\nInvalid input. Please enter Y or N."
+              printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
             fi
           done
         else
-          printf "\n\033[1mConnecting to \033[1;32m$app\033[0m...\n"
-          tsh db connect "$app" 2>&1
+          # If the MongoDB client is found, connect to the selected database
+          printf "\n\033[1mConnecting to \033[1;32m$db\033[0m...\n"
+          echo
+          tsh db connect "$db"
           return
         fi
       elif [[ $connect =~ ^[Nn]$ ]]; then
         printf "\nDatabase connection skipped.\n"
         return 0
       else
-        printf "\nInvalid input. Please enter Y or N."
+        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
       fi
     done
   }
@@ -631,75 +653,92 @@ th(){
 
     # Get the list of apps.
     output=$(tsh db ls)
-    apps=$(echo "$output" | tail -n +3)
+    check_dbs=$(echo "$output" | tail -n +3)
 
-    if [ -z "$check_apps" ]; then
-      thdb_elevated_login
+    # If no apps are listed, prompt for elevated login.
+    if [ -z "$check_dbs" ]; then
+      th_db_elevated_login
     fi
 
+    # If user selects no in th_db_elevated_login, exit the function.
     if [ $exit_db == "TRUE" ]; then
-      printf "\n\033[1;31mExiting database selection.\033[0m\n"
       exit_db="FALSE"
       return 0
     fi
-    
-    local output header apps
+
+    # Once the user returns from the elevated login, re-authenticate with request id.
+    printf "\n\033[1mRe-Authenticating\033[0m\n\n"
+    tsh logout
+    tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id $REQUEST_ID > /dev/null 2>&1
+    local output header dbs
 
     output=$(tsh db ls -f text)
     header=$(echo "$output" | head -n 2)
-    apps=$(echo "$output" | tail -n +3)
+    dbs=$(echo "$output" | tail -n +3)
 
-    # Display header and numbered list of apps.
+    # Re-display header and numbered list of apps.
     printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
     echo "$header"
-    echo "$apps" | nl -w2 -s'. '
+    echo "$dbs" | nl -w2 -s'. '
 
     # Prompt for app selection.
     echo
     printf "\033[1mSelect database (number):\033[0m "
-    read app_choice
-    if [ -z "$app_choice" ]; then
+    read db_choice
+    if [ -z "$db_choice" ]; then
       echo "No selection made. Exiting."
       return 1
     fi
 
-    local chosen_line app
-    chosen_line=$(echo "$apps" | sed -n "${app_choice}p")
-    if [ -z "$chosen_line" ]; then
-      echo "Invalid selection."
-      return 1
-    fi
+    local chosen_line db
+    chosen_line=""
+    while [ -z "$chosen_line" ]; do
+      chosen_line=$(echo "$dbs" | sed -n "${db_choice}p")
+      if [ -z "$chosen_line" ]; then
+        printf "\n\033[31mInvalid selection\033[0m\n"
+        printf "\n\033[1mSelect database (number):\033[0m "
+        read db_choice
+      fi
+    done
 
     # If the first column is ">", use the second column; otherwise, use the first.
-    app=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
-    if [ -z "$app" ]; then
-      echo "Invalid selection."
+    db=$(echo "$chosen_line" | awk '{if ($1==">") print $2; else print $1;}')
+    if [ -z "$db" ]; then
+      printf "\n\033[31mInvalid selection\033[0m\n"
       return 1
     fi
 
-    printf "\nLogging into: \033[1;32m$app\033[0m\n"
-    return 1
-    exit
-
-    case "$app" in
-      "yl-usprod")
-        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+    # Define the correct db_user based on the db name for use in th_db_connect
+    case "$db" in
+      "mongodb-YLUSProd-Cluster-1")
+        db_user="teleport-usprod"
         ;;
-      "yl-prod")
-        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+      "mongodb-YLProd-Cluster-1")
+        db_user="teleport-prod"
         ;;
-      "yl-dev")
-        tsh db login "$app" --aws-role atlas-read-only > /dev/null 2>&1
+      "mongodb-YLSandbox-Cluster-1")
+        db_user="teleport-sandbox"
         ;;
     esac
 
-    tsh db login "$app" > /dev/null 2>&1
+    # Log into the selected db.
+    printf "\nLogging into: \033[1;32m$db\033[0m\n"
+    tsh db login "$db" --db-user=$db_user --db-name="admin" > /dev/null 2>&1
     printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
 
-    th_db_connect "$app"
-    
-  }
+    # Create a proxy for the selected db.
+    printf "\nCreating proxy for \033[1;32m$db\033[0m...\n"
+    tsh proxy db --tunnel --port=50000 $db > /dev/null 2>&1 &
+    printf "\n✅ \033[1;32mProxy created successfully!\033[0m\n"
 
+    # Open MongoDB Compass
+    printf "\nOpening MongoDB compass...\n"
+    open "mongodb://localhost:50000/?directConnection=true"
+
+
+    # CLI Access: Unused at the moment
+    #th_db_connect "$db"
+  }
 
   #===============================================
   #================ Main Handler =================
@@ -735,7 +774,7 @@ th(){
         tawsp "$@"
       fi
       ;;
-    db|d)
+    database|d)
       if [[ "$2" == "-h" ]]; then
 	      echo "Usage:"
       else
