@@ -180,7 +180,7 @@ db_login() {
                 output=$(tsh db ls --format=json)
 
                 # Filter JSON using jq
-                dbs=$(echo "$output" | jq ) #--arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
+                dbs=$(echo "$output" | jq --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
 
                 # Check if the filtered result is empty
                 if [ "$(echo "$dbs" | jq 'length')" -eq 0 ]; then
@@ -216,7 +216,7 @@ db_login() {
     # Filter and enumerate matching databases
     printf "\033c" 
     printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
-    filtered=$(echo "$json_output" | jq) #-r --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
+    filtered=$(echo "$json_output" | jq -r --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
     echo "$filtered" | jq -r '.[] | .metadata.name' | nl -w2 -s'. '
     # Prompt for app selection.
     echo
