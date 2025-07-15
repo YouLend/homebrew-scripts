@@ -2,7 +2,7 @@
 # Helper - Teleport Login
 # ========================
 th_login() {
-    if ! tsh apps logout &>/dev/null; then
+    if ! tsh apps ls &>/dev/null; then
         printf "TSH connection failed. Cleaning up existing sessions & reauthenticating...\n\n"
         th_kill
     fi
@@ -11,6 +11,7 @@ th_login() {
         return 0
     fi
     printf "Logging you into Teleport...\n"
+    #tsh login --proxy=youlend.teleport.sh:443 --auth=local --user=oladele.oloruntimilehin@gmail.com youlend.teleport.sh
     tsh login --auth=ad --proxy=youlend.teleport.sh:443 > /dev/null 2>&1
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do

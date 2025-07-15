@@ -6,7 +6,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/functions/db.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/kube.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/aws.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/helpers.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/functions/terraform.sh"
 
 th(){ 
   #===========================================

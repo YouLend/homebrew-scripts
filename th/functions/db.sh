@@ -116,7 +116,7 @@ rds_connect(){
                 done
                 echo
                 printf "\033c" 
-                tsh db connect "$rds" --db-user=t$db_user --db-name=postgres
+                tsh db connect "$rds" --db-user=$db_user --db-name=postgres
                 return 1
             fi
             printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
