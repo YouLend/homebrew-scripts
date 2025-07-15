@@ -125,7 +125,7 @@ rds_connect(){
                 sleep 1
             done
             echo
-            printf "\033c" 
+            printf "\033c"
             tsh db connect "$rds" --db-user=$db_user --db-name=$database
             ;;
         2)
