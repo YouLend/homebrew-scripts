@@ -109,10 +109,12 @@ kube_login() {
         return 1
     fi
 
-    printf "\n\033[1;4mAvailable Clusters:\033[0m\n"
+    
 
     local cluster_lines=()
     local login_status=()
+
+    printf "\n\033[1mChecking cluster access:\033[0m\n"
 
     while IFS= read -r cluster_name; do
         if [ -z "$cluster_name" ]; then
@@ -137,6 +139,7 @@ kube_login() {
         fi
     done <<< "$clusters"
 
+    printf "\n\033[1;4mAvailable Clusters:\033[0m\n"
     echo
     for i in "${!cluster_lines[@]}"; do
         line="${cluster_lines[$i]}"
@@ -175,9 +178,11 @@ kube_login() {
     if [[ "$selected_status" == "fail" ]]; then
         kube_elevated_login "$selected_cluster"
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
-        tsh kube login "$selected_cluster"
+        tsh kube login "$selected_cluster" /dev/null 2>&1 
+        printf "\n✅ \033[1mLogged in successfully!\033[0m\n"
     else
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
-        tsh kube login "$selected_cluster"
+        tsh kube login "$selected_cluster" > /dev/null 2>&1
+        printf "\n✅ \033[1mLogged in successfully!\033[0m\n"
     fi
 }

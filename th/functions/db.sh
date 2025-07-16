@@ -40,10 +40,11 @@ db_elevated_login() {
 
 open_dbeaver() {
     local database="$1"
-    printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32mteleport_rds_read_user\033[0m...\n\n"
+    local db_user="$2"
+    printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
     sleep 2
     printf "\033c" 
-    tsh proxy db "$rds" --db-name="$database" --port=50000 --tunnel --db-user=teleport_rds_read_user &> /dev/null
+    tsh proxy db "$rds" --db-name="$database" --port=50000 --tunnel --db-user="$db_user" &> /dev/null
     printf "\033[1mTo connect to the database, follow these steps: \033[0m\n"
     printf "\n1. Once DBeaver opens click create a new connection in the very top left.\n"
     printf "2. Select \033[1mPostgreSQL\033[0m as the database type.\n"
@@ -51,7 +52,7 @@ open_dbeaver() {
     printf " - Host:      \033[1mlocalhost\033[0m\n"
     printf " - Port:      \033[1m50000\033[0m\n"
     printf " - Database:  \033[1m$database\033[0m\n"
-    printf " - User:      \033[1mteleport_rds_read_user\033[0m\n"
+    printf " - User:      \033[1m$db_user\033[0m\n"
     printf " - Password:  \033[1m(leave blank)\033[0m\n"
     printf "4. Optionally, select show all databases.\n"
     printf "5. Click 'Test Connection' to ensure everything is set up correctly.\n"
@@ -133,11 +134,17 @@ rds_connect(){
             printf "\nWhich internal database would you like to connect to?\n"
             printf "\nEnter db name (leave blank to connect to \033[1mpostgres\033[0m): "
             read database
+
+            printf "\nConnecting as admin? (y/n): "
+            read admin
+            db_user="teleport_rds_read_user"
+            if [[ $admin =~ ^[Yy]$ ]]; then db_user="sudo_teleport_rds_user"; fi
+
             if [ -z "$database" ]; then
-                open_dbeaver "postgres"
+                open_dbeaver "postgres" "$db_user"
                 return 1
             fi
-            open_dbeaver "$database"
+            open_dbeaver "$database" "$db_user"
             ;;
         *)
             echo "Invalid selection. Exiting."
