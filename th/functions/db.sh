@@ -3,6 +3,18 @@
 #================== databases ==================
 #===============================================
 
+find_available_port() {
+    local port
+    for i in {1..100}; do
+        port=$((RANDOM % 20000 + 40000))
+        if ! nc -z localhost $port &> /dev/null; then
+            echo $port
+            return 0
+        fi
+    done
+    echo 50000
+}
+
 db_elevated_login() {
     local cluster="$1"
     while true; do
@@ -41,16 +53,17 @@ db_elevated_login() {
 open_dbeaver() {
     local database="$1"
     local db_user="$2"
+    local port=$(find_available_port)
     printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
     sleep 2
     printf "\033c" 
-    tsh proxy db "$rds" --db-name="$database" --port=50000 --tunnel --db-user="$db_user" &> /dev/null
+    tsh proxy db "$rds" --db-name="$database" --port=$port --tunnel --db-user="$db_user" &> /dev/null &
     printf "\033[1mTo connect to the database, follow these steps: \033[0m\n"
     printf "\n1. Once DBeaver opens click create a new connection in the very top left.\n"
     printf "2. Select \033[1mPostgreSQL\033[0m as the database type.\n"
     printf "3. Use the following connection details:\n"
     printf " - Host:      \033[1mlocalhost\033[0m\n"
-    printf " - Port:      \033[1m50000\033[0m\n"
+    printf " - Port:      \033[1m$port\033[0m\n"
     printf " - Database:  \033[1m$database\033[0m\n"
     printf " - User:      \033[1m$db_user\033[0m\n"
     printf " - Password:  \033[1m(leave blank)\033[0m\n"
@@ -82,20 +95,21 @@ rds_connect(){
 
     list_postgres_databases() {
         local rds="$1"
+        local port=$(find_available_port)
 
-        tsh proxy db "$rds" --db-user=teleport_rds_read_user --db-name=postgres --port=5432 --tunnel &> /dev/null &
+        tsh proxy db "$rds" --db-user=teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
         tunnel_pid=$!
         disown
 
         # Wait for proxy to open (up to 10s)
         for i in {1..10}; do
-            if nc -z localhost 5432 &> /dev/null; then
+            if nc -z localhost $port &> /dev/null; then
                 break
             fi
             sleep 1
         done
 
-        if ! nc -z localhost 5432 &> /dev/null; then
+        if ! nc -z localhost $port &> /dev/null; then
             printf "\n\033[31m❌ Failed to establish tunnel to database.\033[0m\n"
             kill $tunnel_pid 2>/dev/null
             return 1
@@ -104,7 +118,7 @@ rds_connect(){
         printf "\033c"
         printf "\nFetching list of databases from \033[1;32m$rds\033[0m...\n\n"
 
-        db_list=$(psql "postgres://teleport_rds_read_user@localhost:5432/postgres" -t -A -c \
+        db_list=$(psql "postgres://teleport_rds_read_user@localhost:$port/postgres" -t -A -c \
             "SELECT datname FROM pg_database WHERE datistemplate = false;" 2>/dev/null)
 
         if [ -z "$db_list" ]; then
@@ -132,8 +146,7 @@ rds_connect(){
             kill $tunnel_pid 2>/dev/null
             return 1
         fi
-
-        printf "\n\033[1mYou selected:\033[0m \033[1;32m$database\033[0m\n"
+        
         export database="$database"
         kill $tunnel_pid 2>/dev/null
         return 0
@@ -264,7 +277,7 @@ db_login() {
 
     local json_output filtered db
     echo
-    tsh db logout
+    tsh db logout > /dev/null 2>&1
     # Fetch JSON output from tsh
     json_output=$(tsh db ls --format=json)
 
@@ -367,12 +380,13 @@ mongo_connect() {
 
             # Create a proxy for the selected db.
             printf "\nCreating proxy for \033[1;32m$db\033[0m...\n"
-            tsh proxy db --tunnel --port=50000 $db > /dev/null 2>&1 &
+            local mongo_port=$(find_available_port)
+            tsh proxy db --tunnel --port=$mongo_port $db > /dev/null 2>&1 &
             printf "\n✅ \033[1;32mProxy created successfully!\033[0m\n"
 
             # Open MongoDB Compass
             printf "\nOpening MongoDB compass...\n"
-            open "mongodb://localhost:50000/?directConnection=true"
+            open "mongodb://localhost:$mongo_port/?directConnection=true"
             break
             ;;
         *)

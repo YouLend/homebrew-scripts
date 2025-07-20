@@ -8,7 +8,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/functions/aws.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/helpers.sh"
 
 print_logo() {
-  local version="1.3.4"
+  local version="1.3.5"
   printf "\n"
   printf "                \033[0m\033[38;5;250m ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁\033[0m\033[1;34m\033[0m\n"
   printf "                \033[0m\033[38;5;250m▕░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▏\033[0m\033[1;34m\033[0m\n"
