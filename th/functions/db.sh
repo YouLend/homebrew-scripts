@@ -66,6 +66,8 @@ open_dbeaver() {
 
 rds_connect(){
     local rds="$1"
+    local db_user="teleport_rds_read_user"
+
     printf "\n\033[1;32m$rds\033[0m selected.\n"
     printf "\nHow would you like to connect?\n\n"
     printf "1. Via \033[1mPSQL\033[0m\n"
@@ -77,73 +79,130 @@ rds_connect(){
         echo "No selection made. Exiting."
         return 1
     fi
-    case "$option" in
-        1)
-            # Check whether the user already has the PSQL client installed
-            if ! command -v psql >/dev/null 2>&1; then
-                printf "\n\033[1m=============== PSQL not found =============== \033[0m\n"
-                printf "\n❌ PSQL client not found. It is required to connect to PostgreSQL databases.\n"
-                # Ask whether the user wants to install it via brew
-                while true; do  
-                printf "\nWould you like to install it via brew? (y/n): "
-                read install
-                if [[ $install =~ ^[Yy]$ ]]; then
-                    echo
-                    brew install postgresql@14
-                    printf "\n✅ \033[1;32mPSQL client installed successfully!\033[0m\n"
-                    break
-                elif [[ $install =~ ^[Nn]$ ]]; then
-                    printf "\nPSQL installation skipped.\n"
-                    return 0
-                else
-                    printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
-                fi
-                done
-            fi
-            local db_user="teleport_rds_read_user"
-            printf "\nWhich internal database would you like to connect to?\n"
-            printf "\nEnter db name (leave blank to connect to \033[1mpostgres\033[0m): "
-            read database
 
+    list_postgres_databases() {
+        local rds="$1"
+
+        tsh proxy db "$rds" --db-user=teleport_rds_read_user --db-name=postgres --port=5432 --tunnel &> /dev/null &
+        tunnel_pid=$!
+        disown
+
+        # Wait for proxy to open (up to 10s)
+        for i in {1..10}; do
+            if nc -z localhost 5432 &> /dev/null; then
+                break
+            fi
+            sleep 1
+        done
+
+        if ! nc -z localhost 5432 &> /dev/null; then
+            printf "\n\033[31m❌ Failed to establish tunnel to database.\033[0m\n"
+            kill $tunnel_pid 2>/dev/null
+            return 1
+        fi
+
+        printf "\033c"
+        printf "\nFetching list of databases from \033[1;32m$rds\033[0m...\n\n"
+
+        db_list=$(psql "postgres://teleport_rds_read_user@localhost:5432/postgres" -t -A -c \
+            "SELECT datname FROM pg_database WHERE datistemplate = false;" 2>/dev/null)
+
+        if [ -z "$db_list" ]; then
+            printf "\033[31m❌ No databases found or connection failed.\033[0m\n"
+            kill $tunnel_pid 2>/dev/null
+            return 1
+        fi
+
+        printf "\033[1;4mAvailable databases:\033[0m\n\n"
+        echo "$db_list" | nl -w2 -s'. '
+
+        printf "\n\033[1mSelect database (number):\033[0m "
+        read db_choice
+
+        if [ -z "$db_choice" ]; then
+            echo "No selection made. Exiting."
+            kill $tunnel_pid 2>/dev/null
+            return 1
+        fi
+
+        database=$(echo "$db_list" | sed -n "${db_choice}p")
+
+        if [ -z "$database" ]; then
+            printf "\n\033[31mInvalid selection\033[0m\n"
+            kill $tunnel_pid 2>/dev/null
+            return 1
+        fi
+
+        printf "\n\033[1mYou selected:\033[0m \033[1;32m$database\033[0m\n"
+        export database="$database"
+        kill $tunnel_pid 2>/dev/null
+        return 0
+    }
+
+    check_admin() {
+        if tsh status | grep -qw "sudo_teleport_rds_user"; then 
             printf "\nConnecting as admin? (y/n): "
             read admin
-            if [[ $admin =~ ^[Yy]$ ]]; then db_user="sudo_teleport_rds_user"; fi
 
-            if [ -z "$database" ]; then
-                printf "\n\033[1mConnecting to \033[1;32mpostgres\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n"
-                for i in {3..1}; do
-                printf "\033[1;32m. \033[0m"
-                sleep 1
-                done
+            if [[ $admin =~ ^[Yy]$ ]]; then db_user="sudo_teleport_rds_user"; fi
+        fi
+    }
+
+    check_psql() {
+        if ! command -v psql >/dev/null 2>&1; then
+            printf "\n\033[1m=============== PSQL not found =============== \033[0m\n"
+            printf "\n❌ PSQL client not found. It is required to connect to PostgreSQL databases.\n"
+            # Ask whether the user wants to install it via brew
+            while true; do  
+            printf "\nWould you like to install it via brew? (y/n): "
+            read install
+            if [[ $install =~ ^[Yy]$ ]]; then
                 echo
-                printf "\033c" 
-                tsh db connect "$rds" --db-user=$db_user --db-name=postgres
-                return 1
+                brew install postgresql@14
+                printf "\n✅ \033[1;32mPSQL client installed successfully!\033[0m\n"
+                break
+            elif [[ $install =~ ^[Nn]$ ]]; then
+                printf "\nPSQL installation skipped.\n"
+                return 0
+            else
+                printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
             fi
-            printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
-            for i in {3..1}; do
-                printf "\033[1;32m. \033[0m"
-                sleep 1
             done
-            echo
-            printf "\033c"
-            tsh db connect "$rds" --db-user=$db_user --db-name=$database
+        fi
+    }
+
+    connect_db() {
+        local database="$1"
+        printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n"
+        for i in {3..1}; do
+        printf "\033[1;32m. \033[0m"
+        sleep 1
+        done
+        echo
+        printf "\033c" 
+        tsh db connect "$rds" --db-user=$db_user --db-name=$database
+    }
+    case "$option" in
+        1)
+            printf "\nConnecting via \033[1;32mPSQL\033[0m...\n"
+
+            check_psql
+
+            list_postgres_databases "$rds"
+            
+            check_admin
+
+            if [ -z "$database" ]; then connect_db "postgres"; fi 
+            connect_db "$database"
             ;;
         2)
             printf "\nConnecting via \033[1;32mDBeaver\033[0m...\n"
-            printf "\nWhich internal database would you like to connect to?\n"
-            printf "\nEnter db name (leave blank to connect to \033[1mpostgres\033[0m): "
-            read database
 
-            printf "\nConnecting as admin? (y/n): "
-            read admin
-            db_user="teleport_rds_read_user"
-            if [[ $admin =~ ^[Yy]$ ]]; then db_user="sudo_teleport_rds_user"; fi
+            list_postgres_databases "$rds"
+            
+            check_admin
 
-            if [ -z "$database" ]; then
-                open_dbeaver "postgres" "$db_user"
-                return 1
-            fi
+            if [ -z "$database" ]; then open_dbeaver "postgres" "$db_user";  return 1; fi
             open_dbeaver "$database" "$db_user"
             ;;
         *)
@@ -154,7 +213,8 @@ rds_connect(){
 }
 
 db_login() {
-    printf "Which database would you like to connect to?"
+    th_login
+    printf "\nWhich database would you like to connect to?"
     printf "\n\n1. \033[1mRDS\033[0m"
     printf "\n2. \033[1mMongoDB\033[0m\n"
     local db_type
@@ -163,25 +223,13 @@ db_login() {
         read db_choice
         case "$db_choice" in
             1)
-                printf "\n\033[1mRDS\033[0m selected.\n\n"
-                th_login
+                printf "\n\033[1mRDS\033[0m selected.\n"
                 db_type="rds"
-
-                # Capture tsh db ls output and parse it
-                output=$(tsh db ls --format=json)
-
-                # Filter JSON using jq
-                dbs=$(echo "$output" | jq --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
-
-                # Check if the filtered result is empty
-                if [ "$(echo "$dbs" | jq 'length')" -eq 0 ]; then
-                    db_elevated_login
-                fi
                 break
                 ;;
             2)
                 printf "\n\033[1mMongoDB\033[0m selected.\n\n"
-                th_login
+
                 db_type="mongo"
 
                 output=$(tsh db ls --format=json)

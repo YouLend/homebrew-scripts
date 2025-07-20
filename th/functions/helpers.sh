@@ -2,12 +2,13 @@
 # Helper - Teleport Login
 # ========================
 th_login() {
+    printf "Checking login status...\n"
     if ! tsh apps ls &>/dev/null; then
         printf "TSH connection failed. Cleaning up existing sessions & reauthenticating...\n\n"
         th_kill
     fi
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-        printf "✅ \033[1mAlready logged in to Teleport!\033[0m\n"
+        printf "\n✅ \033[1mAlready logged in to Teleport!\033[0m\n"
         return 0
     fi
     printf "Logging you into Teleport...\n"
