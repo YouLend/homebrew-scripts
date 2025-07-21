@@ -19,7 +19,7 @@ db_elevated_login() {
     local cluster="$1"
     while true; do
         printf "\033c" 
-        printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
+        create_header "Privilege Request"
         printf "\n\nYou don't have access to any databases..."
         printf "\n\nWould you like to raise a request? (y/n): "
         read elevated
@@ -56,8 +56,9 @@ open_dbeaver() {
     local port=$(find_available_port)
     printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
     sleep 2
-    printf "\033c" 
     tsh proxy db "$rds" --db-name="$database" --port=$port --tunnel --db-user="$db_user" &> /dev/null &
+    printf "\033c" 
+    create_header "DBeaver"
     printf "\033[1mTo connect to the database, follow these steps: \033[0m\n"
     printf "\n1. Once DBeaver opens click create a new connection in the very top left.\n"
     printf "2. Select \033[1mPostgreSQL\033[0m as the database type.\n"
@@ -74,24 +75,13 @@ open_dbeaver() {
         printf "\033[1;32m. \033[0m"
         sleep 1
     done
+    printf "\r\033[K\n"
     open -a "DBeaver"
 }
 
 rds_connect(){
     local rds="$1"
     local db_user="teleport_rds_read_user"
-
-    printf "\n\033[1;32m$rds\033[0m selected.\n"
-    printf "\nHow would you like to connect?\n\n"
-    printf "1. Via \033[1mPSQL\033[0m\n"
-    printf "2. Via \033[1mDBeaver\033[0m\n"
-    printf "\nSelect option (number): "
-    read option
-
-    if [ -z "$option" ]; then
-        echo "No selection made. Exiting."
-        return 1
-    fi
 
     list_postgres_databases() {
         local rds="$1"
@@ -116,7 +106,9 @@ rds_connect(){
         fi
 
         printf "\033c"
-        printf "\nFetching list of databases from \033[1;32m$rds\033[0m...\n\n"
+        create_header "Available Databases"
+        printf "Fetching list of databases from \033[1;32m$rds\033[0m...\n\n"
+        sleep 1
 
         db_list=$(psql "postgres://teleport_rds_read_user@localhost:$port/postgres" -t -A -c \
             "SELECT datname FROM pg_database WHERE datistemplate = false;" 2>/dev/null)
@@ -126,8 +118,9 @@ rds_connect(){
             kill $tunnel_pid 2>/dev/null
             return 1
         fi
+        
+        printf "\033[2A\033[K"
 
-        printf "\033[1;4mAvailable databases:\033[0m\n\n"
         echo "$db_list" | nl -w2 -s'. '
 
         printf "\n\033[1mSelect database (number):\033[0m "
@@ -195,6 +188,20 @@ rds_connect(){
         printf "\033c" 
         tsh db connect "$rds" --db-user=$db_user --db-name=$database
     }
+
+    printf "\033c"
+    create_header "Connect"
+    printf "How would you like to connect?\n\n"
+    printf "1. Via \033[1mPSQL\033[0m\n"
+    printf "2. Via \033[1mDBeaver\033[0m\n"
+    printf "\nSelect option (number): "
+    read option
+
+    if [ -z "$option" ]; then
+        echo "No selection made. Exiting."
+        return 1
+    fi
+
     case "$option" in
         1)
             printf "\nConnecting via \033[1;32mPSQL\033[0m...\n"
@@ -227,7 +234,9 @@ rds_connect(){
 
 db_login() {
     th_login
-    printf "\nWhich database would you like to connect to?"
+    printf "\033c"
+    create_header "DB"
+    printf "Which database would you like to connect to?"
     printf "\n\n1. \033[1mRDS\033[0m"
     printf "\n2. \033[1mMongoDB\033[0m\n"
     local db_type
@@ -283,7 +292,7 @@ db_login() {
 
     # Filter and enumerate matching databases
     printf "\033c" 
-    printf "\n\033[1;4mAvailable databases:\033[0m\n\n"
+    create_header "Available Databases"
     if [ "$db_type" == "rds" ]; then
         filtered=$(echo "$json_output" | jq -r --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
     else
@@ -306,6 +315,9 @@ db_login() {
         printf "\n\033[31mInvalid selection\033[0m\n"
         return 1
     fi
+
+    printf "\n\033[1;32m$db\033[0m selected.\n"
+    sleep 1
 
     # If the first column is ">", use the second column; otherwise, use the first.
     if [[ "$db_type" == "rds" ]]; then

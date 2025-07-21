@@ -52,7 +52,7 @@ kube_elevated_login() {
     local cluster="$1"
     while true; do
         printf "\033c" 
-        printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
+        create_header "Privilege Request"
         printf "\n\nYou don't have write access to \033[1m$cluster\033[0m."
         printf "\n\n\033[1mWould you like to raise a request?\033[0m"
         printf "\n\n\033[1mNote:\033[0m Entering (N/n) will log you in as a read-only user."
@@ -90,7 +90,6 @@ kube_elevated_login() {
 # ========================
 kube_login() {
     if [ "$reauth_kube" == "true" ]; then
-        printf "\nReauthenticating"
         printf "\n\033[1mRe-Authenticating\033[0m\n\n"
         tsh logout
         tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
@@ -114,7 +113,10 @@ kube_login() {
     local cluster_lines=()
     local login_status=()
 
-    printf "\n\033[1mChecking cluster access:\033[0m\n"
+    printf "\033c"
+    create_header "Available Clusters"
+
+    printf "\033[1mChecking cluster access...\033[0m\n"
 
     while IFS= read -r cluster_name; do
         if [ -z "$cluster_name" ]; then
@@ -139,8 +141,8 @@ kube_login() {
         fi
     done <<< "$clusters"
 
-    printf "\n\033[1;4mAvailable Clusters:\033[0m\n"
-    echo
+    printf "\033[1A\033[K"
+
     for i in "${!cluster_lines[@]}"; do
         line="${cluster_lines[$i]}"
         status="${login_status[$i]}"
@@ -179,10 +181,10 @@ kube_login() {
         kube_elevated_login "$selected_cluster"
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
         tsh kube login "$selected_cluster" /dev/null 2>&1 
-        printf "\n✅ \033[1mLogged in successfully!\033[0m\n"
+        printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
     else
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
         tsh kube login "$selected_cluster" > /dev/null 2>&1
-        printf "\n✅ \033[1mLogged in successfully!\033[0m\n"
+        printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
     fi
 }

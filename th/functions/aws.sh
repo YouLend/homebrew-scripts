@@ -24,7 +24,8 @@ aws_login() {
     json_output=$(tsh apps ls --format=json)
 
     # Filter and enumerate matching databases
-    printf "\n\033[1;4mAvailable accounts:\033[0m\n\n"
+    printf "\033c"
+    create_header "Available accounts"
     filtered=$(echo "$json_output" | jq '.[] | select(.metadata.name != null)')  # Optional filtering
 
     # Display enumerated names
@@ -51,6 +52,7 @@ aws_login() {
     fi
 
     printf "\nSelected app: \033[1;32m$app\033[0m\n"
+    sleep 1
 
     # Log out of the selected app to force fresh AWS role output.
     tsh apps logout > /dev/null 2>&1
@@ -73,12 +75,12 @@ aws_login() {
     if [ -z "$role_section" ]; then
         local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
         printf "\033c" 
-        printf "\n====================== \033[1mPrivilege Request\033[0m =========================="
-        printf "\n\nNo privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
+        create_header "Privilege Request"
+        printf "No privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
         while true; do
             printf "\n\n\033[1mWould you like to raise a privilege request?\033[0m"
-            printf "\n\n\033[1mNote:\033[0m Entering (N/n) will log you in as \033[1;32m$default_role\033[0m. "
-            printf "\n\n(Yy/Nn):\033[0m "
+            create_note "Entering (N/n) will log you in as \033[1;32m$default_role\033[0m. "
+            printf "(Yy/Nn):\033[0m "
             read request
             if [[ $request =~ ^[Yy]$ ]]; then
                 raise_request "$app"
@@ -97,8 +99,9 @@ aws_login() {
     # Assume the first 2 lines of role_section are headers.
     local roles_list
     roles_list=$(echo "$role_section" | tail -n +3 | awk '{print $1}' | sed '/^\s*$/d')
-
-    printf "\n\033[1;4mAvailable roles:\033[0m\n\n"
+    
+    printf "\033c"
+    create_header "Available Roles"
     echo "$roles_list" | nl -w2 -s'. '
 
     # Prompt for role selection.
@@ -151,7 +154,7 @@ create_proxy() {
 
     printf "\nCleaned up existing credential files.\n"
 
-    printf "\nStarting AWS proxy for \033[1;32m$app\033[0m... Process id: "
+    printf "\nStarting AWS proxy for \033[1;32m$app\033[0m..."
 
     tsh proxy aws --app "$app" > "$log_file" 2>&1 &
 
@@ -201,7 +204,7 @@ create_proxy() {
         echo "export AWS_DEFAULT_REGION=eu-west-1" >> "$log_file"
     fi
 
-    printf "\nCredentials exported, and made global, for app: \033[1;32m$app\033[0m"
+    printf "\nCredentials exported, and made global, for app: \033[1;32m$app\033[0m\n\n"
 } 
 
 # ========================
@@ -242,10 +245,11 @@ raise_request(){
 #===============================================
 terraform_login() {
     th_login     
+    printf "\033c"
+    create_header "Terragrunt Login"
     tsh apps logout > /dev/null 2>&1
-    printf "\n\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin\033[0m\n"
+    printf "\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin\033[0m\n"
     tsh apps login "yl-admin" --aws-role "sudo_admin" > /dev/null 2>&1
     create_proxy
-    printf "\n\n✅ \033[1;32mLogged in successfully!\033[0m"
 }
 
