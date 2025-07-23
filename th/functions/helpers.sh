@@ -91,7 +91,7 @@ th_kill() {
 center_content() {
     # Get terminal width and calculate centering
     local term_width=$(tput cols)
-    content_width=${1:-70}
+    content_width=${1:-61}
     local padding=$(( (term_width - content_width) / 2))
     local center_spaces=""
     
