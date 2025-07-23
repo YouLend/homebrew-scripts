@@ -6,7 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/functions/db.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/kube.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/aws.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/functions/helpers.sh"
-version="1.3.8"
+version="1.3.9"
 th(){ 
   case "$1" in
     kube|k)
