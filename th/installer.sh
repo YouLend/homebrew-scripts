@@ -35,8 +35,7 @@ _ensure_teleport_installed
 brew_prefix=$(brew --prefix)
 
 # Define install location
-#install_location="$brew_prefix/share/th"
-install_location="~/yl-tools/yl-brew-scripts/th"
+install_location="$brew_prefix/share/th"
 helper_script="$install_location/th.sh"
 
 # Detect the current shell

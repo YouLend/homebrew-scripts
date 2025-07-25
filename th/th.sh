@@ -2,7 +2,7 @@
 # =============== Source Files ================
 # =============================================
 
-version="1.4.1"
+version="1.4.2"
 
 if [[ -n "$BASH_SOURCE" ]]; then
     SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
