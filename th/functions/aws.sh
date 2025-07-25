@@ -6,7 +6,7 @@
 # Main - Interactive Login
 # ========================
 aws_login() {
-    if [ "$reauth_aws" == "TRUE" ]; then
+    if [[ "$reauth_aws" == "TRUE" ]]; then
         # Once the user returns from the elevated login, re-authenticate with request id.
         printf "\n\033[1mRe-Authenticating\033[0m\n\n"
         tsh logout

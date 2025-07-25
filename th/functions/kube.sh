@@ -62,9 +62,9 @@ kube_elevated_login() {
         printf "\n\033[1mEnter your reason for request: \033[0m"
         read reason
 
-        if [ "$cluster" == 'live-prod-eks-blue' ]; then
+        if [[ "$cluster" == 'live-prod-eks-blue' ]]; then
             request_output=$(tsh request create --roles sudo_prod_eks_cluster --reason "$reason")
-        elif [ "$cluster" == 'live-usprod-eks-blue' ]; then
+        elif [[ "$cluster" == 'live-usprod-eks-blue' ]]; then
             request_output=$(tsh request create --roles sudo_usprod_eks_cluster --reason "$reason")
         else
             printf "\nCluster doesn't exist"
@@ -89,7 +89,10 @@ kube_elevated_login() {
 # Main - Interactive Login 
 # ========================
 kube_login() {
-    if [ "$reauth_kube" == "true" ]; then
+    # Enable bash-compatible array indexing for zsh
+    [[ -n "$ZSH_VERSION" ]] && setopt KSH_ARRAYS
+    
+    if [[ "$reauth_kube" == "true" ]]; then
         printf "\n\033[1mRe-Authenticating\033[0m\n\n"
         tsh logout
         tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
@@ -101,9 +104,9 @@ kube_login() {
 
     local output clusters
     output=$(tsh kube ls -f json)
-    clusters=$(echo "$output" | jq -r '.[].kube_cluster_name')
+    clusters=$(echo "$output" | tr -d '\000-\037' | jq -r '.[].kube_cluster_name' | grep -v '^$')
 
-    if [ -z "$clusters" ]; then
+    if [[ -z "$clusters" ]]; then
         echo "No Kubernetes clusters available."
         return 1
     fi
@@ -119,7 +122,7 @@ kube_login() {
     printf "\033[1mChecking cluster access...\033[0m\n"
 
     while IFS= read -r cluster_name; do
-        if [ -z "$cluster_name" ]; then
+        if [[ -z "$cluster_name" ]]; then
             continue
         fi
 
@@ -143,27 +146,29 @@ kube_login() {
 
     printf "\033[1A\033[K"
 
-    for i in "${!cluster_lines[@]}"; do
-        line="${cluster_lines[$i]}"
-        status="${login_status[$i]}"
+    local i
+    i=0
+    for line in "${cluster_lines[@]}"; do
+        local cluster_status="${login_status[$i]:-n/a}"
 
-        case "$status" in
+        case "$cluster_status" in
             ok)
-                printf "%2d. %s\n" $((i + 1)) "$line"
+                printf "%2s. %s\n" "$(($i + 1))" "$line"
                 ;;
             fail)
-                printf "\033[90m%2d. %s\033[0m\n" $((i + 1)) "$line"
+                printf "\033[90m%2s. %s\033[0m\n" "$(($i + 1))" "$line"
                 ;;
             n/a)
-                printf "%2d. %s\n" $((i + 1)) "$line"
+                printf "%2s. %s\n" "$(($i + 1))" "$line"
                 ;;
         esac
+        i=$((i + 1))
     done
 
     printf "\n\033[1mSelect cluster (number):\033[0m "
     read choice
 
-    if [ -z "$choice" ]; then
+    if [[ -z "$choice" ]]; then
         echo "No selection made. Exiting."
         return 1
     fi
@@ -175,12 +180,12 @@ kube_login() {
     fi
 
     selected_cluster="${cluster_lines[$selected_index]}"
-    selected_status="${login_status[$selected_index]}"
+    selected_cluster_status="${login_status[$selected_index]}"
 
-    if [[ "$selected_status" == "fail" ]]; then
+    if [[ "$selected_cluster_status" == "fail" ]]; then
         kube_elevated_login "$selected_cluster"
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
-        tsh kube login "$selected_cluster" /dev/null 2>&1 
+        tsh kube login "$selected_cluster" > /dev/null 2>&1 
         printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
     else
         printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"

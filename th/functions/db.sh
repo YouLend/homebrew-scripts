@@ -256,11 +256,11 @@ db_login() {
 
                 output=$(tsh db ls --format=json)
 
-                # Filter JSON using jq
-                dbs=$(echo "$output" | jq -r '[.[] | select(.metadata.labels.db_type != "rds")]')
+                # Filter JSON using jq (clean control characters first)
+                dbs=$(echo "$output" | tr -d '\000-\037' | jq -r '[.[] | select(.metadata.labels.db_type != "rds")]')
 
                 # Check if the filtered result is empty
-                if [ "$(echo "$dbs" | jq 'length')" -eq 0 ]; then
+                if [ "$(echo "$dbs" | tr -d '\000-\037' | jq 'length')" -eq 0 ]; then
                     db_elevated_login
                 fi
                 break
@@ -270,7 +270,7 @@ db_login() {
                 ;;
         esac
     done
-    if [ "$reauth_db" == "TRUE" ]; then
+    if [[ "$reauth_db" == "TRUE" ]]; then
         # Once the user returns from the elevated login, re-authenticate with request id.
         printf "\n\033[1mRe-Authenticating\033[0m\n\n"
         tsh logout
@@ -279,7 +279,7 @@ db_login() {
         return 0
     fi
 
-    if [ "$exit_db" == "TRUE" ]; then
+    if [[ "$exit_db" == "TRUE" ]]; then
         exit_db="FALSE"
         return 0
     fi
@@ -293,13 +293,13 @@ db_login() {
     # Filter and enumerate matching databases
     printf "\033c" 
     create_header "Available Databases"
-    if [ "$db_type" == "rds" ]; then
-        filtered=$(echo "$json_output" | jq -r --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
+    if [[ "$db_type" == "rds" ]]; then
+        filtered=$(echo "$json_output" | tr -d '\000-\037' | jq -r --arg type "$db_type" '[.[] | select(.metadata.labels.db_type == $type)]')
     else
-        filtered=$(echo "$json_output" | jq -r '[.[] | select(.metadata.labels.db_type != "rds")]')
+        filtered=$(echo "$json_output" | tr -d '\000-\037' | jq -r '[.[] | select(.metadata.labels.db_type != "rds")]')
     fi
 
-    echo "$filtered" | jq -r '.[] | .metadata.name' | nl -w2 -s'. '
+    echo "$filtered" | tr -d '\000-\037' | jq -r '.[] | .metadata.name' | nl -w2 -s'. '
     # Prompt for app selection.
     echo
     printf "\033[1mSelect database (number):\033[0m "
@@ -309,7 +309,7 @@ db_login() {
         return 1
     fi
 
-    db=$(echo "$filtered" | jq -r ".[$((db_choice-1))].metadata.name")
+    db=$(echo "$filtered" | tr -d '\000-\037' | jq -r ".[$((db_choice-1))].metadata.name")
 
     if [ -z "$db" ]; then
         printf "\n\033[31mInvalid selection\033[0m\n"
