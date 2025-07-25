@@ -20,7 +20,7 @@ db_elevated_login() {
     while true; do
         printf "\033c" 
         create_header "Privilege Request"
-        printf "\n\nYou don't have access to any databases..."
+        printf "You don't have access to any databases..."
         printf "\n\nWould you like to raise a request? (y/n): "
         read elevated
         if [[ $elevated =~ ^[Yy]$ ]]; then
@@ -81,13 +81,13 @@ open_dbeaver() {
 
 rds_connect(){
     local rds="$1"
-    local db_user="teleport_rds_read_user"
+    local db_user="tf_teleport_rds_read_user"
 
     list_postgres_databases() {
         local rds="$1"
         local port=$(find_available_port)
 
-        tsh proxy db "$rds" --db-user=teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
+        tsh proxy db "$rds" --db-user=tf_teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
         tunnel_pid=$!
         disown
 
@@ -110,7 +110,7 @@ rds_connect(){
         printf "Fetching list of databases from \033[1;32m$rds\033[0m...\n\n"
         sleep 1
 
-        db_list=$(psql "postgres://teleport_rds_read_user@localhost:$port/postgres" -t -A -c \
+        db_list=$(psql "postgres://tf_teleport_rds_read_user@localhost:$port/postgres" -t -A -c \
             "SELECT datname FROM pg_database WHERE datistemplate = false;" 2>/dev/null)
 
         if [ -z "$db_list" ]; then
@@ -341,6 +341,7 @@ mongo_connect() {
         db_user="teleport-sandbox"
         ;;
     esac
+    create_header "MongoDB"
     printf "\n\033[1;32m$db\033[0m selected.\n"
     printf "\nHow would you like to connect?\n\n"
     printf "1. Via \033[1mMongoCLI\033[0m\n"

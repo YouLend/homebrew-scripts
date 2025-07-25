@@ -2,21 +2,26 @@
 # =============== Source Files ================
 # =============================================
 
-source "$(dirname "${BASH_SOURCE[0]}")/functions/db.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/functions/kube.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/functions/aws.sh"
-source "$(dirname "${BASH_SOURCE[0]}")/functions/helpers.sh"
-version="1.3.9"
+version="1.4.1"
+
+if [[ -n "$BASH_SOURCE" ]]; then
+    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+elif [[ -n "$ZSH_VERSION" ]]; then
+    SCRIPT_DIR="$(dirname "${(%):-%x}")"
+else
+    SCRIPT_DIR="$(dirname "$0")"
+fi
+
+source "$SCRIPT_DIR/functions/db.sh"
+source "$SCRIPT_DIR/functions/kube.sh"
+source "$SCRIPT_DIR/functions/aws.sh"
+source "$SCRIPT_DIR/functions/helpers.sh"
+
 th(){ 
   case "$1" in
     kube|k)
       if [[ "$2" == "-h" ]]; then
         echo "Interactive login for our K8s clusters."
-        #echo "Usage:"
-        #echo "-l : List all kubernetes clusters"
-        #echo "-s : List all current sessions"
-        #echo "-e : Execute a command"
-        #echo "-j : Join something"
       else
         shift
         kube_login "$@"
@@ -33,8 +38,6 @@ th(){
     aws|a)
       if [[ "$2" == "-h" ]]; then
         echo "Interactive login for our AWS accounts."
-        #echo "Usage:"
-        #echo "-l : List all accounts"
       else
         shift
         aws_login 
