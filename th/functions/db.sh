@@ -25,27 +25,25 @@ db_elevated_login() {
         read elevated
         if [[ $elevated =~ ^[Yy]$ ]]; then
 
-        printf "\n\033[1mEnter your reason for request: \033[0m"
-        read reason
+            printf "\n\033[1mEnter your reason for request: \033[0m"
+            read reason
+            echo
+            request_output=$(tsh request create --roles atlas-read-only --max-duration 6h --reason "$reason" 2>&1 | tee /dev/tty)
 
-        request_output=$(tsh request create --roles atlas-read-only --reason "$reason" 2>&1 | tee /dev/tty)
+            # 2. Extract request ID
+            REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
 
-        # 2. Extract request ID
-        REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
+            reauth_db="TRUE"
 
-        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
-
-        reauth_db="TRUE"
-
-        return 0
+            return 0
 
         elif [[ $elevated =~ ^[Nn]$ ]]; then
-        echo
-        echo "Request creation skipped."
-        exit_db="TRUE"
-        return 0 
+            echo
+            echo "Request creation skipped."
+            exit_db="TRUE"
+            return 0 
         else
-        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
+            printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
         fi
     done
 }
@@ -146,11 +144,11 @@ rds_connect(){
     }
 
     check_admin() {
-        if tsh status | grep -qw "sudo_teleport_rds_user"; then 
+        if tsh status | grep -qw "sudo_teleport_rds_write_role"; then 
             printf "\nConnecting as admin? (y/n): "
             read admin
 
-            if [[ $admin =~ ^[Yy]$ ]]; then db_user="sudo_teleport_rds_user"; fi
+            if [[ $admin =~ ^[Yy]$ ]]; then db_user="tf_sudo_teleport_rds_user"; fi
         fi
     }
 
@@ -272,11 +270,11 @@ db_login() {
     done
     if [[ "$reauth_db" == "TRUE" ]]; then
         # Once the user returns from the elevated login, re-authenticate with request id.
-        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
+        printf "\033c"
+        create_header "Re-Authenticating"
         tsh logout
         tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
         reauth_db="FALSE"
-        return 0
     fi
 
     if [[ "$exit_db" == "TRUE" ]]; then
@@ -285,7 +283,6 @@ db_login() {
     fi
 
     local json_output filtered db
-    echo
     tsh db logout > /dev/null 2>&1
     # Fetch JSON output from tsh
     json_output=$(tsh db ls --format=json)
@@ -341,8 +338,9 @@ mongo_connect() {
         db_user="teleport-sandbox"
         ;;
     esac
+    printf "\033c"
     create_header "MongoDB"
-    printf "\n\033[1;32m$db\033[0m selected.\n"
+    printf "\033[1;32m$db\033[0m selected.\n"
     printf "\nHow would you like to connect?\n\n"
     printf "1. Via \033[1mMongoCLI\033[0m\n"
     printf "2. Via \033[1mAtlasGUI\033[0m\n"
@@ -387,7 +385,9 @@ mongo_connect() {
             ;;
         2)
             # Log into the selected db.
-            printf "\nLogging into: \033[1;32m$db\033[0m\n"
+            printf "\033c"
+            create_header "Atlas GUI"
+            printf "Logging into: \033[1;32m$db\033[0m as \033[1;32m$db_user\033[0m\n"
             tsh db login "$db" --db-user=$db_user --db-name="admin" > /dev/null 2>&1
             printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
 
@@ -395,7 +395,6 @@ mongo_connect() {
             printf "\nCreating proxy for \033[1;32m$db\033[0m...\n"
             local mongo_port=$(find_available_port)
             tsh proxy db --tunnel --port=$mongo_port $db > /dev/null 2>&1 &
-            printf "\n✅ \033[1;32mProxy created successfully!\033[0m\n"
 
             # Open MongoDB Compass
             printf "\nOpening MongoDB compass...\n"
