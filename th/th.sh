@@ -2,7 +2,7 @@
 # =============== Source Files ================
 # =============================================
 
-version="1.4.3"
+version="1.4.4"
 
 if [[ -n "$BASH_SOURCE" ]]; then
     SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -84,6 +84,10 @@ th(){
           animate_th
           ;;
       esac
+      ;;
+    loader)
+      shift 
+      demo_wave_loader "$@"
       ;;
     *)
       print_help $version | less -R

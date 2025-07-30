@@ -84,6 +84,126 @@ th_kill() {
     printf "\n✅ \033[1;32mLogged out of all apps, clusters & proxies\033[0m\n\n"
 }
 
+find_available_port() {
+    local port
+    for i in {1..100}; do
+        port=$((RANDOM % 20000 + 40000))
+        if ! nc -z localhost $port &> /dev/null; then
+            echo $port
+            return 0
+        fi
+    done
+    echo 50000
+}
+
+spinner() {
+    local pid=$1
+    local message=${2:-"Loading.."}
+    local spin_chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local i=0
+
+    printf '\033[?251'
+
+    while kill -0 $pid 2>/dev/null; do
+        local char=${spin_chars:$((i % ${#spin_chars})):1}
+        printf "\r\033[K%s %s" "$char" "$message"
+        sleep 0.1
+        ((i++))
+    done
+
+    printf "\r\033[K"
+    printf '\033[?25h'
+}
+
+load() {
+    local job="$1"
+    local message="${2:-"Loading.."}"
+    {
+        set +m
+        $job &
+        wave_loader $! "$message"
+        wait
+        set -m
+    }   2>/dev/null
+}
+
+wave_loader() {
+    local pid=$1
+    local message="${2:-"Loading.."}"
+    printf '\033[?25l'
+
+    # Dynamic wave pattern matching header width (65 chars - same as center_content default)
+    local header_width=65
+    local wave_len=$header_width
+    local blocks=("▁" "▂" "▃" "▄" "▅" "▆" "▇" "█")
+    local pos=0
+    local direction=1
+    
+    local trap_cmd="printf '\\033[?25h\\n'; return"
+    trap "$trap_cmd" INT TERM
+    
+    while kill -0 $pid 2>/dev/null; do
+        local line=""
+        local msg_len=${#message}
+        local msg_with_spaces_len=$((msg_len + 2))
+        local msg_start=$(((wave_len - msg_with_spaces_len) / 2))
+        local msg_end=$((msg_start + msg_with_spaces_len))
+        
+        for i in $(seq 0 $((wave_len - 1))); do
+            if [ $i -eq $pos ]; then
+                local center=$((wave_len / 2))
+                local distance_from_center=$((pos > center ? pos - center : center - pos))
+                local max_distance=$((wave_len / 2))
+                local height_boost=$((7 - (distance_from_center * 7 / max_distance)))
+                if [ $height_boost -lt 0 ]; then
+                    height_boost=0
+                fi
+                line="${line}\033[1;97m${blocks[$height_boost]}\033[0m"
+            elif [ $i -ge $msg_start ] && [ $i -lt $msg_end ]; then
+                local char_idx=$((i - msg_start))
+                if [ $char_idx -eq 0 ]; then
+                    line="${line} "
+                elif [ $char_idx -eq $((msg_with_spaces_len - 1)) ]; then
+                    line="${line} "
+                else
+                    local msg_char_idx=$((char_idx - 1))
+                    line="${line}${message:$msg_char_idx:1}"
+                fi
+            else
+                line="${line}\033[38;5;245m \033[0m"
+            fi
+        done
+
+        printf "\r\033[K$line"
+
+        pos=$((pos + direction))
+        if [ $pos -lt 0 ] || [ $pos -ge $wave_len ]; then
+            direction=$((-direction))
+            pos=$((pos + direction))
+        fi
+        
+        local center=$((wave_len / 2))
+        local distance_from_center=$((pos > center ? pos - center : center - pos))
+        local max_distance=$((wave_len / 2))
+        
+        # Animation speed control based on distance from center
+        if [ $distance_from_center -gt $((max_distance * 9 / 10)) ]; then
+            sleep 0.03  # Outermost edge - slow
+        elif [ $distance_from_center -gt $((max_distance * 4 / 5)) ]; then
+            sleep 0.02  # Near edge - slow
+        elif [ $distance_from_center -gt $((max_distance * 3 / 4)) ]; then
+            sleep 0.01  # Mid-distance - slowest
+        elif [ $distance_from_center -gt $((max_distance / 2)) ]; then
+            sleep 0.005 # Approaching center - fast
+        else
+            sleep 0.005 # Center - fastest
+        fi
+    done
+    
+    printf "\r\033[K"
+    printf '\033[?25h'
+}
+
 # ========================================================================================================================
 #                                                       Visual Helpers
 # ========================================================================================================================
@@ -171,19 +291,18 @@ print_help() {
     printf "%s     ╚═ \033[1mth db         | d\033[0m   : Log into our various databases.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth terra      | t\033[0m   : Quick log-in to Terragrunt.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth logout     | l\033[0m   : Clean up Teleport session.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth login      |  \033[0m   : Simple log in to Teleport\033[0m\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth quickstart | qs\033[0m  : Open quickstart guide in browser.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth docs       | doc\033[0m : Open documentation in browser.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth login      | li\033[0m  : Simple log in to Teleport\033[0m\n" "$center_spaces"
     printf "%s     \033[0m\033[38;5;245m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[1;34m\033[0m\n" "$center_spaces"
     printf "%s     For specific instructions, run \033[1mth <option> -h\033[0m\n\n" "$center_spaces"
 
     create_header "Docs" "$center_spaces"
     printf "%s     Run the following commands to access the documentation pages: \n" "$center_spaces"
-    printf "%s     ╚═ \033[1mQuickstart: \033[1;34mth qs\033[0m\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mDocs:       \033[1;34mth doc\033[0m\n\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mQuickstart:   | th qs\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mDocs:         | th doc\033[0m\n\n" "$center_spaces"
     create_header "Extras" "$center_spaces"
     printf "%s     Run the following commands to access the extra features: \n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth animate [option] \033[0m: Run animation.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth loader            \033[0m: Run loader animation.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth animate [options] \033[0m: Run logo animation.\n" "$center_spaces"
     printf "%s        ╚═ \033[1myl\n" "$center_spaces"
     printf "%s        ╚═ \033[1mth\n" "$center_spaces"
     printf "%s          \033[0m\033[38;5;245m  ▁▁▁▁▁▁▁▁▁▁▁▁▁\033[0m\033[1;97m  ▄▄▄ ▄▁▄  \033[0m\033[38;5;245m▁▁▁▁▁▁▁▁▁▁▁▁▁▁\033[0m\033[1;34m\033[0m\n" "$center_spaces"
@@ -260,6 +379,24 @@ animate_th() {
     
     printf "\033[?25h"  # Show cursor
     printf "\n\033[1;32m✓ Ready!\033[0m\n\n"
+}
+
+demo_wave_loader() {
+    local message="${1:-"Demo Wave Loader"}"
+    
+    # Create a dummy background process that runs for a very long time (macOS compatible)
+    sleep 99999 &
+    local dummy_pid=$!
+    
+    # Set up trap to clean up when Ctrl+C is pressed
+    trap "kill $dummy_pid 2>/dev/null; printf '\033[?25h\n'; exit 0" INT
+    
+    printf "\033c"
+
+    printf "\nPress Ctrl+C to exit (Spam it, if it doesn't work first time!)\n\n"
+    
+    # Run the wave loader with the dummy process
+    wave_loader $dummy_pid "$message"
 }
 
 animate_youlend() {

@@ -1,50 +1,41 @@
 #===============================================
 #================ Kubernetes ===================
 #===============================================
-# ========================
-# Helper - Local Handler 
-# ========================
-tkube() {
-    if [ $# -eq 0 ]; then
-        tkube_interactive_login
-        return
-    fi 
 
-    case "$1" in
-        -l)
-        tsh kube ls -f text
-        ;;
-        -s)
-        shift
-        if [ $# -eq 0 ]; then
-            echo "Missing arguments for -s"
-            return 1
-        fi
-        tsh kube sessions "$@"
-        ;;
-        -e)
-        shift
-        if [ $# -eq 0 ]; then
-            echo "Missing arguments for -e"
-            return 1
-        fi
-        tsh kube exec "$@"
-        ;;
-        -j)
-        shift
-        if [ $# -eq 0 ]; then
-            echo "Missing arguments for -j"
-            return 1
-        fi
-        tsh kube join "$@"
-        ;;
+# Cluster environment mapping
+get_cluster_name() {
+    local env="$1"
+    case "$env" in
+        dev)
+            echo "aslive-dev-eks-blue"
+            ;;
+        sandbox)
+            echo "aslive-sandbox-eks-blue"
+            ;;
+        staging)
+            echo "aslive-staging-eks-blue"
+            ;;
+        usstaging)
+            echo "aslive-usstaging-eks-blue"
+            ;;
+        admin)
+            echo "headquarter-admin-eks-green"
+            ;;
+        prod)
+            echo "live-prod-eks-blue"
+            ;;
+        usprod)
+            echo "live-usprod-eks-blue"
+            ;;
+        corepgblue)
+            echo "platform-corepgblue-eks-blue"
+            ;;
+        corepggreen)
+            echo "platform-corepggreen-eks-green"
+            ;;
         *)
-        echo "Usage:"
-        echo "-l : List all clusters"
-        echo "-s : List all sessions"
-        echo "-e : Execute command"
-        echo "-j : Join something"
-        ;;
+            echo ""
+            ;;
     esac
 }
 
@@ -88,7 +79,64 @@ kube_elevated_login() {
 # ========================
 # Main - Interactive Login 
 # ========================
+check_kube_login() {
+    local output clusters
+    output=$(tsh kube ls -f json)
+    clusters=$(echo "$output" | tr -d '\000-\037' | jq -r '.[].kube_cluster_name' | grep -v '^$')
+
+    if [[ -z "$clusters" ]]; then
+        echo "No Kubernetes clusters available."
+        return 1
+    fi
+
+    # Write to predetermined temp files that parent shell can read
+    local access_status="unknown"
+    local test_cluster=""
+    
+    # First pass: write all cluster names and find a test cluster
+    while IFS= read -r cluster_name; do
+        if [[ -z "$cluster_name" ]]; then
+            continue
+        fi
+
+        echo "$cluster_name" >> "$temp_cluster_file"
+        
+        # Find first prod cluster to test with
+        if [[ -z "$test_cluster" && "$cluster_name" == *prod* ]]; then
+            test_cluster="$cluster_name"
+        fi
+    done <<< "$clusters"
+    
+    # Test access with one prod cluster if we found one
+    if [[ -n "$test_cluster" ]]; then
+        if tsh kube login "$test_cluster" > /dev/null 2>&1; then
+            if kubectl auth can-i create pod > /dev/null 2>&1; then
+                access_status="ok"
+            else
+                access_status="fail"
+            fi
+        else
+            access_status="fail"
+        fi
+    fi
+    
+    # Second pass: write status for all clusters based on single test
+    while IFS= read -r cluster_name; do
+        if [[ -z "$cluster_name" ]]; then
+            continue
+        fi
+
+        if [[ "$cluster_name" == *prod* ]]; then
+            echo "$access_status" >> "$temp_cluster_status_file"
+        else
+            echo "n/a" >> "$temp_cluster_status_file"
+        fi
+    done <<< "$clusters"
+}
+
 kube_login() {
+    local env_arg="$1"
+    
     # Enable bash-compatible array indexing for zsh
     [[ -n "$ZSH_VERSION" ]] && setopt KSH_ARRAYS
     
@@ -101,50 +149,50 @@ kube_login() {
     else
         th_login
     fi
+    
+    # Direct login if environment argument provided
+    if [[ -n "$env_arg" ]]; then
+        local cluster_name
+        cluster_name=$(get_cluster_name "$env_arg")
+        
+        if [[ -z "$cluster_name" ]]; then
+            printf "\n\033[31mUnknown environment: $env_arg\033[0m\n"
+            printf "Available environments: dev, sandbox, staging, usstaging, admin, prod, usprod, corepgblue, corepggreen\n"
+            return 1
+        fi
 
-    local output clusters
-    output=$(tsh kube ls -f json)
-    clusters=$(echo "$output" | tr -d '\000-\037' | jq -r '.[].kube_cluster_name' | grep -v '^$')
+        printf "\033c"
+        create_header "Kube Login"
+        
+        printf "Logging you into:\033[0m \033[1;32m$cluster_name\033[0m\n"
 
-    if [[ -z "$clusters" ]]; then
-        echo "No Kubernetes clusters available."
-        return 1
+        tsh kube login "$cluster_name" > /dev/null 2>&1
+        
+        printf "\n✅ Logged in successfully!\n"
+        return 0
     fi
 
-    
-
-    local cluster_lines=()
-    local login_status=()
+    temp_cluster_file=$(mktemp)
+    temp_cluster_status_file=$(mktemp)
 
     printf "\033c"
     create_header "Available Clusters"
+    load check_kube_login "Checking cluster access..."
+    
+    # Read results back into arrays
+    local cluster_lines=()
+    local login_status=()
 
-    printf "\033[1mChecking cluster access...\033[0m\n"
-
-    while IFS= read -r cluster_name; do
-        if [[ -z "$cluster_name" ]]; then
-            continue
-        fi
-
-        cluster_lines+=("$cluster_name")
-
-        # Only try login for prod clusters
-        if [[ "$cluster_name" == *prod* ]]; then
-            if tsh kube login "$cluster_name" > /dev/null 2>&1; then
-                if kubectl auth can-i create pod > /dev/null 2>&1; then
-                    login_status+=("ok")
-                else
-                    login_status+=("fail")
-                fi
-            else
-                login_status+=("fail")
-            fi
-        else
-            login_status+=("n/a")
-        fi
-    done <<< "$clusters"
-
-    printf "\033[1A\033[K"
+    while IFS= read -r line; do
+        cluster_lines+=("$line")
+    done < "$temp_cluster_file"
+    
+    while IFS= read -r line; do
+        login_status+=("$line")
+    done < "$temp_cluster_status_file"
+    
+    # Clean up temp files
+    rm -f "$temp_cluster_file" "$temp_cluster_status_file"
 
     local i
     i=0
