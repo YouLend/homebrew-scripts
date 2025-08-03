@@ -2,7 +2,7 @@
 # =============== Source Files ================
 # =============================================
 
-version="1.4.4"
+version="1.4.5"
 
 if [[ -n "$BASH_SOURCE" ]]; then
     SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -40,7 +40,7 @@ th(){
         echo "Interactive login for our AWS accounts."
       else
         shift
-        aws_login 
+        aws_login "$@"
       fi
       ;;
     database|d)

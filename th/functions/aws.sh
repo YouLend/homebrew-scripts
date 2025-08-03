@@ -1,10 +1,6 @@
 #===============================================
 #=================== AWS =======================
 #===============================================
-
-# ========================
-# Main - Interactive Login
-# ========================
 aws_login() {
     if [[ "$reauth_aws" == "TRUE" ]]; then
         # Once the user returns from the elevated login, re-authenticate with request id.
@@ -16,6 +12,11 @@ aws_login() {
     else
         th_login
         echo
+    fi
+
+    if [[ -n "$1" ]]; then
+        aws_quick_login "$@"
+        return 0
     fi
 
     local json_output filtered app
@@ -56,8 +57,6 @@ aws_login() {
 
     # Log out of the selected app to force fresh AWS role output.
     tsh apps logout > /dev/null 2>&1
-    # Clear screen
-    printf "\033c"
 
     # Run tsh apps login to capture the AWS roles listing.
     # (This command will error out because --aws-role is required, but it prints the available AWS roles.)
@@ -73,27 +72,7 @@ aws_login() {
     role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
 
     if [ -z "$role_section" ]; then
-        local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
-        printf "\033c" 
-        create_header "Privilege Request"
-        printf "No privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
-        while true; do
-            printf "\n\n\033[1mWould you like to raise a privilege request?\033[0m"
-            create_note "Entering (N/n) will log you in as \033[1;32m$default_role\033[0m. "
-            printf "(Yy/Nn):\033[0m "
-            read request
-            if [[ $request =~ ^[Yy]$ ]]; then
-                raise_request "$app"
-            elif [[ $request =~ ^[Nn]$ ]]; then
-                printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
-                tsh apps login "$app" > /dev/null 2>&1
-                printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-                create_proxy
-                return
-            else
-                printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
-            fi
-        done
+        aws_elevated_login "$app"
     fi
 
     # Assume the first 2 lines of role_section are headers.
@@ -124,13 +103,128 @@ aws_login() {
     printf "\nLogging you into \033[1;32m$app\033[0m as \033[1;32m$role_name\033[0m"
     tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
     printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-    create_proxy
+    create_proxy $role_name
 }
 
-# ========================
-# Helper - Get Credentials
-# ========================
+# AWS account mapping
+load_config() {
+    local env="$1"
+    # Handle bash vs zsh differences for script directory detection
+    if [[ -n "$ZSH_VERSION" ]]; then
+        local script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+    else
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    fi
+    local config_file="$script_dir/../th.config"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    source "$config_file"
+    local var_name="aws_${env}"
+    # Handle indirect variable expansion for zsh vs bash
+    if [[ -n "$ZSH_VERSION" ]]; then
+        echo "${(P)var_name}"
+    else
+        echo "${!var_name}"
+    fi
+}
+
+# Quick AWS login
+aws_quick_login() {
+    local env_arg="$1"
+    local sudo_flag="$2"
+    
+    if [[ -z "$env_arg" ]]; then
+        echo "Usage: aws_quick_login <environment> [s]"
+        echo "Available environments: dev, sandbox, staging, usstaging, admin, prod, usprod, corepgblue, corepggreen"
+        return 1
+    fi
+    
+    local account_name
+    account_name=$(load_config "$env_arg")
+
+    printf "\033c"
+    create_header "AWS Login"
+    
+    local role_name
+    local role_value
+
+    case "$env_arg" in
+        "dev")
+            role_value="dev"
+            ;;
+        "corepg")
+            role_value="coreplayground"
+            ;;
+        *)
+            role_value="${env_arg}"
+            ;;
+    esac
+    
+    if [[ "$sudo_flag" == "s" ]]; then
+        role_name="sudo_${role_value}"
+        printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
+    else
+        role_name="${role_value}"
+        printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
+    fi
+    
+    tsh apps logout > /dev/null 2>&1
+    tsh apps login "$account_name" --aws-role "$role_name" > /dev/null 2>&1
+    
+    if [[ $? -eq 0 ]]; then
+        printf "\n✅ Logged in successfully!\n"
+        create_proxy $role_name
+        return 0
+    else
+        printf "\n❌ Login failed. Please check the role name or try interactive login.\n"
+        return 1
+    fi
+}
+
+
+aws_elevated_login(){
+    local app="$1"
+    local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
+    printf "\033c" 
+    create_header "Privilege Request"
+    printf "No privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
+
+    while true; do
+        printf "\n\n\033[1mWould you like to raise a privilege request?\033[0m"
+        create_note "Entering (N/n) will log you in as \033[1;32m$default_role\033[0m. "
+        printf "(Yy/Nn):\033[0m "
+        read request
+        if [[ $request =~ ^[Yy]$ ]]; then
+            printf "\n\033[1mEnter request reason:\033[0m "
+            read reason
+
+            role=$([ "$app" = "yl-production" ] && echo "sudo_prod_role" || echo "sudo_usprod_role")
+            
+            request_output=$(tsh request create --roles $role --reason "$reason" 2>&1 | tee /dev/tty)
+            REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
+            
+            printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
+            reauth_aws="TRUE"
+            return 0
+        elif [[ $request =~ ^[Nn]$ ]]; then
+            printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
+            tsh apps login "$app" > /dev/null 2>&1
+            printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
+            create_proxy "$default_role"
+            return
+        else
+            printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
+        fi
+    done
+}
+
+# Create proxy & source credentials
 create_proxy() {
+    local role_name="$1"
     # Enable nullglob in Zsh to avoid errors on unmatched globs
     if [ -n "$ZSH_VERSION" ]; then
         setopt NULL_GLOB
@@ -145,8 +239,6 @@ create_proxy() {
     fi
 
     local log_file="/tmp/tsh_proxy_${app}.log"
-    # Try other methods to kill existing processes
-    # pkill -f "tsh proxy aws" 2>/dev/null
 
     for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
         [ -e "$f" ] && rm -f "$f"
@@ -178,7 +270,9 @@ create_proxy() {
     done < "$log_file"
 
     export ACCOUNT=$app
+    export ROLE=$role_name
     echo "export ACCOUNT=$app" >> "$log_file"
+    echo "export ROLE=$role_name" >> "$log_file"
 
     # Determine shell and modify appropriate profile
     local shell_name shell_profile
@@ -207,39 +301,6 @@ create_proxy() {
     printf "\nCredentials exported, and made global, for app: \033[1;32m$app\033[0m\n\n"
 } 
 
-# ========================
-# Helper - Create Request 
-# ========================
-raise_request(){
-    local app="$1"
-    printf "\n\033[1mEnter request reason:\033[0m "
-    read reason
-    if [[ $app == "yl-production" ]]; then
-        request_output=$(tsh request create --roles sudo_prod_role --reason "$reason" 2>&1 | tee /dev/tty)
-
-        # 2. Extract request ID
-        REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
-
-        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
-
-        reauth_aws="TRUE"
-        return 0
-    elif [[ $app == "yl-usproduction" ]]; then
-        request_output=$(tsh request create --roles sudo_usprod_role --reason "$reason" 2>&1 | tee /dev/tty)
-
-        # 2. Extract request ID
-        REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
-
-        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
-
-        reauth_aws="TRUE"
-        return 0
-    else
-        printf "\nNo associated roles"
-        return 1 
-    fi
-}
-
 #===============================================
 #================= Terraform ===================
 #===============================================
@@ -250,6 +311,6 @@ terraform_login() {
     tsh apps logout > /dev/null 2>&1
     printf "\033[1mLogging into \033[1;32myl-admin\033[0m \033[1mas\033[0m \033[1;32msudo_admin\033[0m\n"
     tsh apps login "yl-admin" --aws-role "sudo_admin" > /dev/null 2>&1
-    create_proxy
+    create_proxy "sudo_admin"
 }
 

@@ -5,10 +5,7 @@ th_login() {
     printf "\033c"
     create_header "Login"
     printf "Checking login status...\n"
-    # if ! tsh apps ls &>/dev/null; then
-    #     printf "TSH connection failed. Cleaning up existing sessions & reauthenticating...\n\n"
-    #     th_kill
-    # fi
+    # Check if already logged in
     if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
         cprintf "\n✅ \033[1mAlready logged in to Teleport!\033[0m\n"
         sleep 1
@@ -71,6 +68,7 @@ th_kill() {
     unset AWS_CA_BUNDLE
     unset HTTPS_PROXY
     unset ACCOUNT
+    unset ROLE
     unset AWS_DEFAULT_REGION
 
     printf "\n💀 \033[0mKilling all running tsh proxies...\033[0m\n\n"
@@ -96,25 +94,6 @@ find_available_port() {
     echo 50000
 }
 
-spinner() {
-    local pid=$1
-    local message=${2:-"Loading.."}
-    local spin_chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-    local i=0
-
-    printf '\033[?251'
-
-    while kill -0 $pid 2>/dev/null; do
-        local char=${spin_chars:$((i % ${#spin_chars})):1}
-        printf "\r\033[K%s %s" "$char" "$message"
-        sleep 0.1
-        ((i++))
-    done
-
-    printf "\r\033[K"
-    printf '\033[?25h'
-}
-
 load() {
     local job="$1"
     local message="${2:-"Loading.."}"
@@ -133,9 +112,15 @@ wave_loader() {
     printf '\033[?25l'
 
     # Dynamic wave pattern matching header width (65 chars - same as center_content default)
-    local header_width=65
+    local header_width=63
     local wave_len=$header_width
-    local blocks=("▁" "▂" "▃" "▄" "▅" "▆" "▇" "█")
+    # Handle zsh vs bash array indexing differences
+    if [ -n "$ZSH_VERSION" ]; then
+        # In zsh, arrays are 1-indexed, so we need an extra element at index 0
+        local blocks=("" "▁" "▂" "▃" "▄" "▅" "▆" "▇" "█")
+    else
+        local blocks=("▁" "▂" "▃" "▄" "▅" "▆" "▇" "█")
+    fi
     local pos=0
     local direction=1
     
@@ -149,7 +134,12 @@ wave_loader() {
         local msg_start=$(((wave_len - msg_with_spaces_len) / 2))
         local msg_end=$((msg_start + msg_with_spaces_len))
         
-        for i in $(seq 0 $((wave_len - 1))); do
+        for i in $(seq 1 $wave_len); do
+            if [ -n "$ZSH_VERSION" ]; then
+                i=$((i))
+            else
+                i=$((i - 1))
+            fi
             if [ $i -eq $pos ]; then
                 local center=$((wave_len / 2))
                 local distance_from_center=$((pos > center ? pos - center : center - pos))
@@ -158,7 +148,12 @@ wave_loader() {
                 if [ $height_boost -lt 0 ]; then
                     height_boost=0
                 fi
-                line="${line}\033[1;97m${blocks[$height_boost]}\033[0m"
+                # Use consistent indexing - account for zsh vs bash array differences
+                if [ -n "$ZSH_VERSION" ]; then
+                    line="${line}\033[1;97m${blocks[$((height_boost + 1))]}\033[0m"
+                else
+                    line="${line}\033[1;97m${blocks[$height_boost]}\033[0m"
+                fi
             elif [ $i -ge $msg_start ] && [ $i -lt $msg_end ]; then
                 local char_idx=$((i - msg_start))
                 if [ $char_idx -eq 0 ]; then
@@ -174,7 +169,7 @@ wave_loader() {
             fi
         done
 
-        printf "\r\033[K$line"
+        printf "\r\033[K$line" 
 
         pos=$((pos + direction))
         if [ $pos -lt 0 ] || [ $pos -ge $wave_len ]; then
@@ -230,9 +225,15 @@ cprintf() {
     printf "$center_spaces$text"
 }
 
+ccode() {
+    local text="$1"
+    printf "\n\033[37m\033[30;47m$text\033[0m\033[37m\033[0m\n"
+}
+
 create_header() {
     local header_text="$1"
     local center_spaces="$2"
+    local remove_new_line="$3"
     local header_length=${#header_text}
 
     local total_dash_count=$((52))
@@ -248,7 +249,7 @@ create_header() {
     
     local left_dash_str=$(printf '━%.0s' $(seq 1 $left_dashes))
     local right_dash_str=$(printf '━%.0s' $(seq 1 $right_dashes))
-    
+    if [[ -z $remove_new_line ]]; then printf "\n"; fi
     printf "\033[0m\033[38;5;245m%s    ▄███████▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀███████████▀\033[0m\033[1;34m\033[0m\n" "$center_spaces"
     printf "\033[0m\033[38;5;245m%s  \033[0m\033[1m%s %s\033[0m\033[38;1m %s \033[0m\033[1;34m\033[0m\n" "$center_spaces" "$left_dash_str" "$header_text" "$right_dash_str"
     printf "\033[0m\033[38;5;245m%s▄███████████▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███████▀\033[0m\033[1;34m\033[0m\n\n" "$center_spaces"
@@ -285,7 +286,7 @@ print_help() {
     version="$1"
 
     print_logo "$version" "$center_spaces"
-    create_header "Usage" "$center_spaces"
+    create_header "Usage" "$center_spaces" 1
     printf "%s     ╚═ \033[1mth kube       | k\033[0m   : Kubernetes login.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth aws        | a\033[0m   : AWS login.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth db         | d\033[0m   : Log into our various databases.\n" "$center_spaces"
@@ -294,12 +295,11 @@ print_help() {
     printf "%s     ╚═ \033[1mth login      | li\033[0m  : Simple log in to Teleport\033[0m\n" "$center_spaces"
     printf "%s     \033[0m\033[38;5;245m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[1;34m\033[0m\n" "$center_spaces"
     printf "%s     For specific instructions, run \033[1mth <option> -h\033[0m\n\n" "$center_spaces"
-
-    create_header "Docs" "$center_spaces"
+    create_header "Docs" "$center_spaces" 1
     printf "%s     Run the following commands to access the documentation pages: \n" "$center_spaces"
     printf "%s     ╚═ \033[1mQuickstart:   | th qs\033[0m\n" "$center_spaces"
     printf "%s     ╚═ \033[1mDocs:         | th doc\033[0m\n\n" "$center_spaces"
-    create_header "Extras" "$center_spaces"
+    create_header "Extras" "$center_spaces" 1
     printf "%s     Run the following commands to access the extra features: \n" "$center_spaces"
     printf "%s     ╚═ \033[1mth loader            \033[0m: Run loader animation.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth animate [options] \033[0m: Run logo animation.\n" "$center_spaces"
