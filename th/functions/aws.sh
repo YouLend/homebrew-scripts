@@ -103,7 +103,7 @@ aws_login() {
     printf "\nLogging you into \033[1;32m$app\033[0m as \033[1;32m$role_name\033[0m"
     tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
     printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-    create_proxy $role_name
+    create_proxy $app $role_name
 }
 
 # AWS account mapping
@@ -165,24 +165,19 @@ aws_quick_login() {
     esac
     
     if [[ "$sudo_flag" == "s" ]]; then
-        role_name="sudo_${role_value}"
+        role_name="sudo_${role_value}" > /dev/null 2>&1
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     else
-        role_name="${role_value}"
+        role_name="${role_value}" > /dev/null 2>&1
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     fi
     
     tsh apps logout > /dev/null 2>&1
     tsh apps login "$account_name" --aws-role "$role_name" > /dev/null 2>&1
-    
-    if [[ $? -eq 0 ]]; then
-        printf "\n✅ Logged in successfully!\n"
-        create_proxy $role_name
-        return 0
-    else
-        printf "\n❌ Login failed. Please check the role name or try interactive login.\n"
-        return 1
-    fi
+
+    printf "\n✅ Logged in successfully!\n"
+    create_proxy "$account_name" "$role_name"
+    return 0
 }
 
 
@@ -214,7 +209,7 @@ aws_elevated_login(){
             printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
             tsh apps login "$app" > /dev/null 2>&1
             printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-            create_proxy "$default_role"
+            create_proxy "$app" "$default_role"
             return
         else
             printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
@@ -224,14 +219,12 @@ aws_elevated_login(){
 
 # Create proxy & source credentials
 create_proxy() {
-    local role_name="$1"
+    local app="$1"
+    local role_name="$2"
     # Enable nullglob in Zsh to avoid errors on unmatched globs
     if [ -n "$ZSH_VERSION" ]; then
         setopt NULL_GLOB
     fi
-
-    local app
-    app=$(tsh apps ls -f text | awk '$1 == ">" { print $2 }')
 
     if [ -z "$app" ]; then
         echo "No active app found. Run 'tsh apps login <app>' first."

@@ -5,15 +5,7 @@ kube_login() {
     # Enable bash-compatible array indexing for zsh
     [[ -n "$ZSH_VERSION" ]] && setopt KSH_ARRAYS
     
-    if [[ "$reauth_kube" == "true" ]]; then
-        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
-        tsh logout
-        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-        reauth_kube="false"
-        return 0
-    else
-        th_login
-    fi
+    th_login
 
     # Direct login if environment argument provided
     if [[ -n "$1" ]]; then 
@@ -82,14 +74,19 @@ kube_login() {
 
     if [[ "$selected_cluster_status" == "fail" ]]; then
         kube_elevated_login "$selected_cluster"
-        printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
-        tsh kube login "$selected_cluster" > /dev/null 2>&1 
-        printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
-    else
-        printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
-        tsh kube login "$selected_cluster" > /dev/null 2>&1
-        printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
     fi
+
+    if [[ "$reauth_kube" == "true" ]]; then
+        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
+        tsh logout
+        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
+        reauth_kube="false"
+        return 0   
+    fi
+
+    printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
+    tsh kube login "$selected_cluster" > /dev/null 2>&1
+    printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
 }
 
 kube_quick_login() {
