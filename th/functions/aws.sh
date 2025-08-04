@@ -107,7 +107,7 @@ aws_login() {
 }
 
 # AWS account mapping
-load_config() {
+load_aws_config() {
     local env="$1"
     # Handle bash vs zsh differences for script directory detection
     if [[ -n "$ZSH_VERSION" ]]; then
@@ -144,7 +144,7 @@ aws_quick_login() {
     fi
     
     local account_name
-    account_name=$(load_config "$env_arg")
+    account_name=$(load_aws_config "$env_arg")
 
     printf "\033c"
     create_header "AWS Login"

@@ -97,7 +97,7 @@ kube_quick_login() {
     local ql_arg="$1"
 
     local cluster_name
-    cluster_name=$(load_config "$ql_arg")
+    cluster_name=$(load_kube_config "$ql_arg")
     
     if [[ -z "$cluster_name" ]]; then
         printf "\n\033[31mUnknown environment: $ql_arg\033[0m\n"
@@ -116,7 +116,7 @@ kube_quick_login() {
 }
 
 # Load cluster env mapping for kube quick login
-load_config() {
+load_kube_config() {
     local env="$1"
     # Handle bash vs zsh differences for script directory detection
     if [[ -n "$ZSH_VERSION" ]]; then
