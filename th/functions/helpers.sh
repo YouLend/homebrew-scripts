@@ -227,7 +227,7 @@ cprintf() {
 
 ccode() {
     local text="$1"
-    printf "\n\033[37m\033[30;47m$text\033[0m\033[37m\033[0m\n"
+    printf "\033[38;5;245m▕\033[0m\033[48;5;245m$text\033[0m\033[38;5;245m▏\033[0m"
 }
 
 create_header() {
@@ -287,22 +287,22 @@ print_help() {
 
     print_logo "$version" "$center_spaces"
     create_header "Usage" "$center_spaces" 1
-    printf "%s     ╚═ \033[1mth kube       | k\033[0m   : Kubernetes login.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth aws        | a\033[0m   : AWS login.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth db         | d\033[0m   : Log into our various databases.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth terra      | t\033[0m   : Quick log-in to Terragrunt.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth logout     | l\033[0m   : Clean up Teleport session.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth login      | li\033[0m  : Simple log in to Teleport\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth aws  [options] | a\033[0m   : AWS login.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth db             | d\033[0m   : Log into our various databases.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth kube [options] | k\033[0m   : Kubernetes login.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth terra          | t\033[0m   : Quick log-in to Terragrunt.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth logout         | l\033[0m   : Clean up Teleport session.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth login          | li\033[0m  : Simple log in to Teleport\033[0m\n" "$center_spaces"
     printf "%s     \033[0m\033[38;5;245m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[1;34m\033[0m\n" "$center_spaces"
-    printf "%s     For specific instructions, run \033[1mth <option> -h\033[0m\n\n" "$center_spaces"
+    printf "%s     For help, and \033[1m[options]\033[0m info, run \033[1mth a/k/d etc.. -h\033[0m\n\n" "$center_spaces"
     create_header "Docs" "$center_spaces" 1
     printf "%s     Run the following commands to access the documentation pages: \n" "$center_spaces"
-    printf "%s     ╚═ \033[1mQuickstart:   | th qs\033[0m\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mDocs:         | th doc\033[0m\n\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mQuickstart:       | th qs\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mDocs:             | th doc\033[0m\n\n" "$center_spaces"
     create_header "Extras" "$center_spaces" 1
     printf "%s     Run the following commands to access the extra features: \n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth loader            \033[0m: Run loader animation.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth animate [options] \033[0m: Run logo animation.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth loader               \033[0m: Run loader animation.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth animate [options]    \033[0m: Run logo animation.\n" "$center_spaces"
     printf "%s        ╚═ \033[1myl\n" "$center_spaces"
     printf "%s        ╚═ \033[1mth\n" "$center_spaces"
     printf "%s          \033[0m\033[38;5;245m  ▁▁▁▁▁▁▁▁▁▁▁▁▁\033[0m\033[1;97m  ▄▄▄ ▄▁▄  \033[0m\033[38;5;245m▁▁▁▁▁▁▁▁▁▁▁▁▁▁\033[0m\033[1;34m\033[0m\n" "$center_spaces"

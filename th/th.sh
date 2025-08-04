@@ -2,7 +2,7 @@
 # =============== Source Files ================
 # =============================================
 
-version="1.4.8"
+version="1.4.9"
 
 if [[ -n "$BASH_SOURCE" ]]; then
     SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -21,7 +21,14 @@ th(){
   case "$1" in
     kube|k)
       if [[ "$2" == "-h" ]]; then
-        echo "Interactive login for our K8s clusters."
+        print "\033c"
+        create_header "th kube | k"
+        printf "Login to our Kubernetes clusters.\n\n"
+        printf "Usage: \033[1mth kube [options] | k\033[0m\n"
+        printf " ╚═ \033[1mth k\033[0m                     : Open interactive login.\n"
+        printf " ╚═ \033[1mth k <account>\033[0m           : Quick kube log-in, Where \033[1m<account>\033[0m=dev, corepg etc..\n\n"
+        printf "e.g:\n"
+        printf " ╚═$(ccode "th k dev")                : logs you into \033[0;32maslive-dev-eks-blue.\033[0m\n"
       else
         shift
         kube_login "$@"
@@ -37,7 +44,17 @@ th(){
       ;;
     aws|a)
       if [[ "$2" == "-h" ]]; then
-        echo "Interactive login for our AWS accounts."
+        print "\033c"
+        create_header "th aws | a"
+        printf "Login to our AWS accounts.\n\n"
+        printf "Usage: \033[1mth aws [options] | k\033[0m\n"
+        printf " ╚═ \033[1mth a\033[0m                    : Open interactive login.\n"
+        printf " ╚═ \033[1mth a <account> <s>\033[0m      : Quick aws log-in, Where \033[1m<account>\033[0m=dev, corepg etc.. \n"
+        printf "                              and \033[1m<s>\033[0m is an optional arg which logs you in with \n"
+        printf "                              the account's sudo role\n"
+        printf "e.g:\n"
+        printf "\033[1m ╚═$(ccode "th a dev")               : logs you into \033[0;32myl-development\033[0m as \033[4;32mdev\033[0m\n"
+        printf "\033[1m ╚═$(ccode "th a dev s")             : logs you into \033[0;32myl-development\033[0m as \033[4;32msudo_dev\033[0m\n"
       else
         shift
         aws_login "$@"
