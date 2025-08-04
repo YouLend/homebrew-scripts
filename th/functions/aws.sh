@@ -239,7 +239,7 @@ create_proxy() {
 
     printf "\nCleaned up existing credential files.\n"
 
-    printf "\nStarting AWS proxy for \033[1;32m$app\033[0m..."
+    printf "\nStarting AWS proxy for \033[1;32m$app\033[0m...\n"
 
     tsh proxy aws --app "$app" > "$log_file" 2>&1 &
 
