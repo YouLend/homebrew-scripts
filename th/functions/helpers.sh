@@ -26,24 +26,30 @@ check_th_updates_background() {
         fi
     fi
     
-    # Run background check without brew update (much faster)
+    # Run background check using brew outdated (much cleaner)
     {
         if command -v brew >/dev/null 2>&1; then
-            # Get current installed version
-            local current_version=$(brew list --versions $package_name 2>/dev/null | awk '{print $2}' | head -1)
+            # Use brew outdated to check for updates - it handles everything for us
+            local outdated_info=$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated $tap_name/$package_name 2>/dev/null)
             
-            if [ -n "$current_version" ]; then
-                # Get latest version from brew WITHOUT updating (much faster)
-                local latest_version=$(brew info $tap_name/$package_name 2>/dev/null | head -1 | awk '{print $4}')
+            if [ -n "$outdated_info" ]; then
+                # Parse the output: "youlend/tools/th (1.5.0) < 1.5.2"
+                local current_version=$(echo "$outdated_info" | grep -o '([^)]*)' | tr -d '()')
+                local latest_version=$(echo "$outdated_info" | awk '{print $NF}')
                 
-                # Compare versions
-                if [ -n "$latest_version" ] && [ "$current_version" != "$latest_version" ]; then
+                if [ -n "$current_version" ] && [ -n "$latest_version" ]; then
                     echo "UPDATE_AVAILABLE:$current_version:$latest_version" | tee "$daily_cache_file" > "$session_cache_file"
                 else
                     echo "UP_TO_DATE" | tee "$daily_cache_file" > "$session_cache_file"
                 fi
             else
-                echo "NOT_INSTALLED_VIA_BREW" | tee "$daily_cache_file" > "$session_cache_file"
+                # Either up to date or not installed via brew
+                local installed_version=$(brew list --versions $package_name 2>/dev/null | awk '{print $2}' | head -1)
+                if [ -n "$installed_version" ]; then
+                    echo "UP_TO_DATE" | tee "$daily_cache_file" > "$session_cache_file"
+                else
+                    echo "NOT_INSTALLED_VIA_BREW" | tee "$daily_cache_file" > "$session_cache_file"
+                fi
             fi
         else
             echo "BREW_NOT_FOUND" | tee "$daily_cache_file" > "$session_cache_file"
