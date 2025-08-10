@@ -1,6 +1,93 @@
 # ========================================================================================================================
 #                                                    Functional Helpers
 # ========================================================================================================================
+
+# Background update checker
+check_th_updates_background() {
+    local daily_cache_file="$HOME/.cache/th_update_check"
+    local session_cache_file="/tmp/.th_update_check_$$"
+    local tap_name="youlend/tools"
+    local package_name="th"
+    
+    # Create cache directory if it doesn't exist
+    mkdir -p "$(dirname "$daily_cache_file")"
+    
+    # Check if we already checked today
+    if [ -f "$daily_cache_file" ]; then
+        local cache_time=$(stat -c %Y "$daily_cache_file" 2>/dev/null || stat -f %m "$daily_cache_file" 2>/dev/null)
+        local current_time=$(date +%s)
+        local time_diff=$((current_time - cache_time))
+        
+        # If cache is less than 24 hours old, use cached result
+        if [ $time_diff -lt 86400 ]; then
+            cp "$daily_cache_file" "$session_cache_file" 2>/dev/null
+            echo "$session_cache_file"
+            return
+        fi
+    fi
+    
+    # Run background check without brew update (much faster)
+    {
+        if command -v brew >/dev/null 2>&1; then
+            # Get current installed version
+            local current_version=$(brew list --versions $package_name 2>/dev/null | awk '{print $2}' | head -1)
+            
+            if [ -n "$current_version" ]; then
+                # Get latest version from brew WITHOUT updating (much faster)
+                local latest_version=$(brew info $tap_name/$package_name 2>/dev/null | head -1 | awk '{print $3}')
+                
+                # Compare versions
+                if [ -n "$latest_version" ] && [ "$current_version" != "$latest_version" ]; then
+                    echo "UPDATE_AVAILABLE:$current_version:$latest_version" | tee "$daily_cache_file" > "$session_cache_file"
+                else
+                    echo "UP_TO_DATE" | tee "$daily_cache_file" > "$session_cache_file"
+                fi
+            else
+                echo "NOT_INSTALLED_VIA_BREW" | tee "$daily_cache_file" > "$session_cache_file"
+            fi
+        else
+            echo "BREW_NOT_FOUND" | tee "$daily_cache_file" > "$session_cache_file"
+        fi
+    } &
+    
+    echo "$session_cache_file"
+}
+
+# Check for update results and display notification
+show_update_notification() {
+    local update_cache_file="$1"
+    
+    # Don't wait - just check if file exists
+    if [ -f "$update_cache_file" ]; then
+        local result=$(cat "$update_cache_file")
+        rm -f "$update_cache_file" 2>/dev/null
+        
+        if [[ "$result" == UPDATE_AVAILABLE:* ]]; then
+            local current_version=$(echo "$result" | cut -d':' -f2)
+            local latest_version=$(echo "$result" | cut -d':' -f3)
+            
+            printf "\n"
+            create_header "Update Available"
+            printf "A new version of \033[1mth\033[0m is available!\n"
+            printf "Current: \033[33m$current_version\033[0m → Latest: \033[32m$latest_version\033[0m\n\n"
+            printf "Run \033[1m$(ccode "th u")\033[0m to update.\n\n"
+            
+            # Ask user if they want to upgrade now
+            read -p "Would you like to upgrade now? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                printf "\n🔄 Updating th...\n"
+                brew upgrade youlend/tools/th
+                if [ $? -eq 0 ]; then
+                    printf "\n✅ \033[1;32mth updated successfully!\033[0m\n"
+                    printf "You may need to restart your shell or run: $(ccode "source ~/.zshrc")\n\n"
+                else
+                    printf "\n❌ \033[1;31mUpdate failed. Please try manually.\033[0m\n\n"
+                fi
+            fi
+        fi
+    fi
+}
 th_login() {
     printf "\033c"
     create_header "Login"
@@ -227,7 +314,7 @@ cprintf() {
 
 ccode() {
     local text="$1"
-    printf "\033[38;5;245m▕\033[0m\033[48;5;245m$text\033[0m\033[38;5;245m▏\033[0m"
+    printf "\033[38;5;245m▕\033[0m\033[48;5;245m\033[97m$text\033[0m\033[38;5;245m▏\033[0m"
 }
 
 create_header() {

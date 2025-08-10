@@ -2,17 +2,7 @@
 #=================== AWS =======================
 #===============================================
 aws_login() {
-    if [[ "$reauth_aws" == "TRUE" ]]; then
-        # Once the user returns from the elevated login, re-authenticate with request id.
-        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
-        tsh logout
-        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-        reauth_aws="FALSE"
-        return 0
-    else
-        th_login
-        echo
-    fi
+    th_login
 
     if [[ -n "$1" ]]; then
         aws_quick_login "$@"
@@ -20,7 +10,7 @@ aws_login() {
     fi
 
     local json_output filtered app
-    tsh apps logout
+    tsh apps logout > /dev/null 2>&1
     # Fetch JSON output from tsh
     json_output=$(tsh apps ls --format=json)
 
@@ -60,21 +50,43 @@ aws_login() {
 
     # Run tsh apps login to capture the AWS roles listing.
     # (This command will error out because --aws-role is required, but it prints the available AWS roles.)
-    local login_output
+    local login_output role_section 
     login_output=$(tsh apps login "$app" 2>&1)
 
     # Extract the AWS roles section.
     # The section is expected to start after "Available AWS roles:" and end before the error message.
-    local role_section
     role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
 
     # Remove lines that contain "ERROR:" or that are empty.
     role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
 
+    local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
+
     if [ -z "$role_section" ]; then
-        aws_elevated_login "$app"
+        aws_elevated_login "$app" "$default_role"
     fi
 
+    if [[ "$reauth_aws" == "TRUE" ]]; then
+        # Once the user returns from the elevated login, re-authenticate with request id.
+        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
+        tsh logout
+        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
+        reauth_aws="FALSE"
+
+        # Refresh login output
+        login_output=$(tsh apps login "$app" 2>&1)
+
+        role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
+
+        role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
+    else
+        printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
+        tsh apps login "$app" > /dev/null 2>&1
+        printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
+        create_proxy "$app" "$default_role"
+        return 0 
+    fi
+   
     # Assume the first 2 lines of role_section are headers.
     local roles_list
     roles_list=$(echo "$role_section" | tail -n +3 | awk '{print $1}' | sed '/^\s*$/d')
@@ -183,7 +195,7 @@ aws_quick_login() {
 
 aws_elevated_login(){
     local app="$1"
-    local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
+    local default_role="$2"
     printf "\033c" 
     create_header "Privilege Request"
     printf "No privileged roles found. Your only available role is: \033[1;32m%s\033[0m" $default_role
@@ -204,13 +216,9 @@ aws_elevated_login(){
             
             printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
             reauth_aws="TRUE"
-            return 0
+            return 
         elif [[ $request =~ ^[Nn]$ ]]; then
-            printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
-            tsh apps login "$app" > /dev/null 2>&1
-            printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-            create_proxy "$app" "$default_role"
-            return
+            return 0
         else
             printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
         fi

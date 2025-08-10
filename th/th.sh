@@ -18,6 +18,14 @@ source "$SCRIPT_DIR/functions/aws.sh"
 source "$SCRIPT_DIR/functions/helpers.sh"
 
 th(){ 
+  # Start background update check for interactive commands
+  local update_cache_file=""
+  case "$1" in
+    kube|k|aws|a|database|d|terra|t)
+      update_cache_file=$(check_th_updates_background)
+      ;;
+  esac
+
   case "$1" in
     kube|k)
       if [[ "$2" == "-h" ]]; then
@@ -32,6 +40,10 @@ th(){
       else
         shift
         kube_login "$@"
+        # Show update notification after command completes
+        if [ -n "$update_cache_file" ]; then
+          show_update_notification "$update_cache_file"
+        fi
       fi
       ;;
     terra|t)
@@ -40,6 +52,10 @@ th(){
       else
         shift
         terraform_login "$@"
+        # Show update notification after command completes
+        if [ -n "$update_cache_file" ]; then
+          show_update_notification "$update_cache_file"
+        fi
       fi
       ;;
     aws|a)
@@ -58,6 +74,10 @@ th(){
       else
         shift
         aws_login "$@"
+        # Show update notification after command completes
+        if [ -n "$update_cache_file" ]; then
+          show_update_notification "$update_cache_file"
+        fi
       fi
       ;;
     database|d)
@@ -66,6 +86,10 @@ th(){
       else
         shift
         db_login "$@"
+        # Show update notification after command completes
+        if [ -n "$update_cache_file" ]; then
+          show_update_notification "$update_cache_file"
+        fi
       fi
       ;;
     logout|l)
@@ -105,6 +129,9 @@ th(){
     loader)
       shift 
       demo_wave_loader "$@"
+      ;;
+    update|u)
+      brew upgrade youlend/tools/th
       ;;
     *)
       print_help $version | less -R
