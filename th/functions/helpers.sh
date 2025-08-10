@@ -34,7 +34,7 @@ check_th_updates_background() {
             
             if [ -n "$current_version" ]; then
                 # Get latest version from brew WITHOUT updating (much faster)
-                local latest_version=$(brew info $tap_name/$package_name 2>/dev/null | head -1 | awk '{print $3}')
+                local latest_version=$(brew info $tap_name/$package_name 2>/dev/null | head -1 | awk '{print $4}')
                 
                 # Compare versions
                 if [ -n "$latest_version" ] && [ "$current_version" != "$latest_version" ]; then
