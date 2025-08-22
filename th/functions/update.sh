@@ -127,8 +127,7 @@ create_notification() {
                 
                 # Use load function with brew upgrade
                 update_th() {
-                    sleep 3
-                    #brew upgrade youlend/tools/th > /dev/null 2>&1
+                    brew upgrade youlend/tools/th > /dev/null 2>&1
                 }
                 
                 load update_th "Installing update..."
