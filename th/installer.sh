@@ -52,9 +52,59 @@ ensure_jq_installed() {
   fi
 }
 
+ensure_mongosh_installed() {
+  if ! command -v mongosh >/dev/null 2>&1; then
+    echo "mongosh is not installed."
+    echo "Attempting to install mongosh using Homebrew..."
+
+    if command -v brew >/dev/null 2>&1; then
+      brew install mongosh
+
+      # Verify installation
+      if command -v mongosh >/dev/null 2>&1; then
+	echo "mongosh installed successfully."
+      else
+	echo "mongosh installation failed. Please install it manually."
+      fi
+    else
+      echo "Homebrew is not installed. Cannot install mongosh automatically."
+      echo "Please install Homebrew first: https://brew.sh/"
+    fi
+  else
+    echo "mongosh already installed."
+    echo
+  fi
+}
+
+ensure_postgresql_installed() {
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "PostgreSQL (psql) is not installed."
+    echo "Attempting to install PostgreSQL using Homebrew..."
+
+    if command -v brew >/dev/null 2>&1; then
+      brew install postgresql@14
+
+      # Verify installation
+      if command -v psql >/dev/null 2>&1; then
+	echo "PostgreSQL installed successfully."
+      else
+	echo "PostgreSQL installation failed. Please install it manually."
+      fi
+    else
+      echo "Homebrew is not installed. Cannot install PostgreSQL automatically."
+      echo "Please install Homebrew first: https://brew.sh/"
+    fi
+  else
+    echo "PostgreSQL already installed."
+    echo
+  fi
+}
+
 # Run the checks
 ensure_teleport_installed
 ensure_jq_installed
+ensure_mongosh_installed
+ensure_postgresql_installed
 # ================================================================
 # 2. Add source command to shell profile
 # ================================================================

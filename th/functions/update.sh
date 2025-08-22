@@ -79,14 +79,35 @@ create_notification() {
     # If changelog is provided, add it below the notification box
     if [ -n "$changelog" ]; then
         printf "\n"
-        # Display changelog entries as bullet points (no background, centered)
+        
+        # First pass: find the longest changelog line
+        local max_changelog_len=0
         while IFS= read -r line || [ -n "$line" ]; do
             if [ -n "$line" ]; then
-                local changelog_line="• $line"
+                # Remove markdown dashes and convert to bullet
+                local clean_line=$(echo "$line" | sed 's/^- //')
+                local changelog_line="• $clean_line"
                 local changelog_len=${#changelog_line}
-                local changelog_padding=$(( (box_width - changelog_len - 4) / 2 ))
-                local changelog_spaces=""
-                for ((i=0; i<changelog_padding; i++)); do changelog_spaces+=" "; done
+                if [ $changelog_len -gt $max_changelog_len ]; then
+                    max_changelog_len=$changelog_len
+                fi
+            fi
+        done <<< "$changelog"
+        
+        # Align with menu option text (2 spaces in from button edge)
+        local option1_width=8  # Fixed width for "Yes" + padding
+        local separator="                           "  # Fixed separator 
+        local total_menu_width=$((option1_width + ${#separator} + 8))
+        local menu_padding=$(( (box_width - total_menu_width) / 2 ))
+        local changelog_spaces=""
+        for ((i=0; i<menu_padding+2; i++)); do changelog_spaces+=" "; done
+        
+        # Second pass: display all lines with same left alignment
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [ -n "$line" ]; then
+                # Remove markdown dashes and convert to bullet
+                local clean_line=$(echo "$line" | sed 's/^- //')
+                local changelog_line="• $clean_line"
                 printf "${indent}${changelog_spaces}${changelog_line}\n"
             fi
         done <<< "$changelog"
@@ -104,7 +125,7 @@ create_notification() {
             0) # Yes selected - perform update
                 printf "\n${indent}🔄 Updating th...\n\n"
                 # Capture and indent brew output
-                brew info youlend/tools/th 2>&1 | sed "s/^/${indent}/"
+                brew upgrade youlend/tools/th > /dev/null 2>&1
                 if [ $? -eq 0 ]; then
                     # Automatically source the shell profile to reload th
                     printf "${indent}🔄 Reloading th...\n"
@@ -398,11 +419,11 @@ show_update_notification() {
 # Get changelog from GitHub release
 get_changelog() {
     local version="$1"
-    local repo="youlend/yl-brew-scripts"  # Update with your actual repo
+    local repo="youlend/homebrew-scripts"  # Update with your actual repo
     
     if command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         # Fetch changelog from GitHub releases API
-        local changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/v$version" | jq -r '.body // empty' 2>/dev/null)
+        local changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/th-v$version" | jq -r '.body // empty' 2>/dev/null)
         
         if [[ -n "$changelog_body" && "$changelog_body" != "null" ]]; then
             echo "$changelog_body"
