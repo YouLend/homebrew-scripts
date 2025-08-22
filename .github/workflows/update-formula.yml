@@ -1,26 +1,24 @@
 name: Update Homebrew Formula
 on:
-  push:
-    tags:
-      - '*-v*'
+  release:
+    types: [published]
 
 jobs:
   update-formula:
     runs-on: ubuntu-latest
     steps:
-      - name: Get tag info
-        id: tag
+      - name: Get release info
+        id: release
         run: |
-          echo "full_tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          TOOL_NAME=$(echo ${GITHUB_REF#refs/tags/} | cut -d'-' -f1)
-          VERSION=$(echo ${GITHUB_REF#refs/tags/} | cut -d'-' -f2 | sed 's/^v//')
-          echo "tool_name=$TOOL_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "tool_name=th" >> $GITHUB_OUTPUT
+          VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Calculate SHA256
         id: sha
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
+          TAG="${{ github.event.release.tag_name }}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
           curl -L $DOWNLOAD_URL | shasum -a 256 | cut -d ' ' -f 1 > sha.txt
           echo "sha256=$(cat sha.txt)" >> $GITHUB_OUTPUT
@@ -34,15 +32,15 @@ jobs:
 
       - name: Update formula
         run: |
-          FORMULA_FILE="Formula/${{ steps.tag.outputs.tool_name }}.rb"
+          FORMULA_FILE="Formula/${{ steps.release.outputs.tool_name }}.rb"
           sed -i 's|url ".*"|url "${{ steps.sha.outputs.download_url }}"|' $FORMULA_FILE
           sed -i 's|sha256 ".*"|sha256 "${{ steps.sha.outputs.sha256 }}"|' $FORMULA_FILE
-          sed -i 's|version ".*"|version "${{ steps.tag.outputs.version }}"|' $FORMULA_FILE
+          sed -i 's|version ".*"|version "${{ steps.release.outputs.version }}"|' $FORMULA_FILE
 
       - name: Commit and push
         run: |
           git config user.name "${{ secrets.GH_USERNAME }}"
           git config user.email "${{ secrets.GH_EMAIL }}"
-          git add Formula/${{ steps.tag.outputs.tool_name }}.rb
-          git commit -m "Update ${{ steps.tag.outputs.tool_name }} formula to ${{ steps.tag.outputs.version }}"
+          git add Formula/${{ steps.release.outputs.tool_name }}.rb
+          git commit -m "Update ${{ steps.release.outputs.tool_name }} formula to ${{ steps.release.outputs.version }}"
           git push

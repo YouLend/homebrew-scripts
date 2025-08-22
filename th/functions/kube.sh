@@ -86,6 +86,7 @@ kube_login() {
 
     printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
     tsh kube login "$selected_cluster" > /dev/null 2>&1
+    #export NO_PROXY="oidc.eks.eu-west-1.amazonaws.com,${NO_PROXY:-}"
     printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
 }
 
@@ -108,6 +109,8 @@ kube_quick_login() {
     printf "Logging you into:\033[0m \033[1;32m$cluster_name\033[0m\n"
 
     tsh kube login "$cluster_name" > /dev/null 2>&1
+
+    #export NO_PROXY="oidc.eks.eu-west-1.amazonaws.com,${NO_PROXY:-}"
     
     printf "\n✅ Logged in successfully!\n\n"
 }
@@ -121,21 +124,14 @@ load_kube_config() {
     else
         local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     fi
-    local config_file="$script_dir/../th.config"
+    local config_file="$script_dir/../th.config.json"
     
     if [[ ! -f "$config_file" ]]; then
         echo ""
         return 1
     fi
     
-    source "$config_file"
-    local var_name="kube_${env}"
-    # Handle indirect variable expansion for zsh vs bash
-    if [[ -n "$ZSH_VERSION" ]]; then
-        echo "${(P)var_name}"
-    else
-        echo "${!var_name}"
-    fi
+    jq -r ".kube.${env} // empty" "$config_file"
 }
 
 # Teleport privileged access flow

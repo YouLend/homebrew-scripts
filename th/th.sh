@@ -16,6 +16,7 @@ source "$SCRIPT_DIR/functions/db.sh"
 source "$SCRIPT_DIR/functions/kube.sh"
 source "$SCRIPT_DIR/functions/aws.sh"
 source "$SCRIPT_DIR/functions/helpers.sh"
+source "$SCRIPT_DIR/functions/update.sh"
 
 th(){ 
   # Start background update check for interactive commands
@@ -36,7 +37,7 @@ th(){
         printf " ╚═ \033[1mth k\033[0m                     : Open interactive login.\n"
         printf " ╚═ \033[1mth k <account>\033[0m           : Quick kube log-in, Where \033[1m<account>\033[0m=dev, corepg etc..\n\n"
         printf "e.g:\n"
-        printf " ╚═$(ccode "th k dev")                : logs you into \033[0;32maslive-dev-eks-blue.\033[0m\n"
+        printf " ╚═ $(ccode "th k dev")                : logs you into \033[0;32maslive-dev-eks-blue.\033[0m\n"
       else
         shift
         kube_login "$@"
@@ -69,8 +70,8 @@ th(){
         printf "                              and \033[1m<s>\033[0m is an optional arg which logs you in with \n"
         printf "                              the account's sudo role\n"
         printf "e.g:\n"
-        printf "\033[1m ╚═$(ccode "th a dev")               : logs you into \033[0;32myl-development\033[0m as \033[4;32mdev\033[0m\n"
-        printf "\033[1m ╚═$(ccode "th a dev s")             : logs you into \033[0;32myl-development\033[0m as \033[4;32msudo_dev\033[0m\n"
+        printf "\033[1m ╚═ $(ccode "th a dev")              : logs you into \033[0;32myl-development\033[0m as \033[4;32mdev\033[0m\n"
+        printf "\033[1m ╚═ $(ccode "th a dev s")            : logs you into \033[0;32myl-development\033[0m as \033[4;32msudo_dev\033[0m\n"
       else
         shift
         aws_login "$@"
@@ -133,7 +134,12 @@ th(){
     update|u)
       brew upgrade youlend/tools/th
       ;;
+    notifications|n)
+      shift
+      create_notification "1.50" "1.52" "prompt"
+      ;;
     *)
+
       print_help $version | less -R
   esac
 }

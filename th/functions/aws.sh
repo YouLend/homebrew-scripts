@@ -2,15 +2,16 @@
 #=================== AWS =======================
 #===============================================
 aws_login() {
-    th_login
+    #th_login
+
+    tsh apps logout > /dev/null 2>&1
 
     if [[ -n "$1" ]]; then
         aws_quick_login "$@"
         return 0
     fi
-
+    
     local json_output filtered app
-    tsh apps logout > /dev/null 2>&1
     # Fetch JSON output from tsh
     json_output=$(tsh apps ls --format=json)
 
@@ -64,6 +65,9 @@ aws_login() {
 
     if [ -z "$role_section" ]; then
         aws_elevated_login "$app" "$default_role"
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
     fi
 
     if [[ "$reauth_aws" == "TRUE" ]]; then
@@ -79,12 +83,6 @@ aws_login() {
         role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
 
         role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
-    else
-        printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
-        tsh apps login "$app" > /dev/null 2>&1
-        printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-        create_proxy "$app" "$default_role"
-        return 0 
     fi
    
     # Assume the first 2 lines of role_section are headers.
@@ -127,54 +125,73 @@ load_aws_config() {
     else
         local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     fi
-    local config_file="$script_dir/../th.config"
+    local config_file="$script_dir/../th.config.json"
     
     if [[ ! -f "$config_file" ]]; then
         echo ""
         return 1
     fi
     
-    source "$config_file"
-    local var_name="aws_${env}"
-    # Handle indirect variable expansion for zsh vs bash
+    jq -r ".aws.${env}.account // empty" "$config_file"
+}
+
+# Load AWS role from config
+load_aws_role() {
+    local env="$1"
+    # Handle bash vs zsh differences for script directory detection
     if [[ -n "$ZSH_VERSION" ]]; then
-        echo "${(P)var_name}"
+        local script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
     else
-        echo "${!var_name}"
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     fi
+    local config_file="$script_dir/../th.config.json"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    jq -r ".aws.${env}.role // empty" "$config_file"
 }
 
 # Quick AWS login
 aws_quick_login() {
     local env_arg="$1"
-    local sudo_flag="$2"
+    local open_browser=false
+    local sudo_flag=""
     
-    if [[ -z "$env_arg" ]]; then
-        echo "Usage: aws_quick_login <environment> [s]"
-        echo "Available environments: dev, sandbox, staging, usstaging, admin, prod, usprod, corepgblue, corepggreen"
-        return 1
-    fi
+    # Check args 2 onwards for 'b' flag and 's' flag
+    shift  # Remove first argument (environment)
+    for arg in "$@"; do
+        if [[ "$arg" == "b" ]]; then
+            open_browser=true
+        elif [[ "$arg" == "s" ]]; then
+            sudo_flag="s"
+        fi
+    done
     
     local account_name
     account_name=$(load_aws_config "$env_arg")
+    
+    # Check if the environment exists in config
+    if [ -z "$account_name" ]; then
+        printf "\033c"
+        create_header "AWS Login Error"
+        printf "\n\033[31m❌ Environment '$env_arg' not found in configuration.\033[0m\n\n"
+        printf "Available environments: dev, sandbox, staging, usstaging, admin, prod, usprod, corepgblue, corepggreen\n\n"
+        return 1
+    fi
 
     printf "\033c"
     create_header "AWS Login"
     
     local role_name
     local role_value
-
-    case "$env_arg" in
-        "dev")
-            role_value="dev"
-            ;;
-        "corepg")
-            role_value="coreplayground"
-            ;;
-        *)
-            role_value="${env_arg}"
-            ;;
-    esac
+    role_value=$(load_aws_role "$env_arg")
+    
+    if [ -z "$role_value" ]; then
+        role_value="${env_arg}"
+    fi
     
     if [[ "$sudo_flag" == "s" ]]; then
         role_name="sudo_${role_value}" > /dev/null 2>&1
@@ -184,11 +201,27 @@ aws_quick_login() {
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     fi
     
+
+    printf "\nFinish"
+    return 0
+
     tsh apps logout > /dev/null 2>&1
     tsh apps login "$account_name" --aws-role "$role_name" > /dev/null 2>&1
 
     printf "\n✅ Logged in successfully!\n"
-    create_proxy "$account_name" "$role_name"
+    
+    # Skip proxy creation if browser flag is set, open console instead
+    if [[ "$open_browser" == "true" ]]; then
+        printf "\n🌐 Opening AWS console in browser...\n"
+        base_url="https://youlend.teleport.sh/web/launch"
+        app_url=$(tsh apps config | grep URI | awk '{print $2}' | sed 's/https:\/\///')
+        role=$(tsh apps config | grep "AWS ARN" | awk '{print $3}' | sed 's/\//%2F/g')
+        url="$base_url/$app_url/youlend.teleport.sh/$app_url/$role"
+        open "$url"
+    else
+        create_proxy "$account_name" "$role_name"
+    fi
+    
     return 0
 }
 
@@ -218,6 +251,10 @@ aws_elevated_login(){
             reauth_aws="TRUE"
             return 
         elif [[ $request =~ ^[Nn]$ ]]; then
+            printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
+            tsh apps login "$app" > /dev/null 2>&1
+            printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
+            create_proxy "$app" "$default_role"
             return 0
         else
             printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
@@ -249,7 +286,12 @@ create_proxy() {
 
     printf "\nStarting AWS proxy for \033[1;32m$app\033[0m...\n"
 
-    tsh proxy aws --app "$app" > "$log_file" 2>&1 &
+    {
+        set +m
+        tsh proxy aws --app "$app" > "$log_file" 2>&1 &
+        disown
+        set -m
+    } > /dev/null 2>&1
 
     # Wait up to 10 seconds for credentials to appear
     local wait_time=0
@@ -314,4 +356,3 @@ terraform_login() {
     tsh apps login "yl-admin" --aws-role "sudo_admin" > /dev/null 2>&1
     create_proxy "yl-admin" "sudo_admin"
 }
-

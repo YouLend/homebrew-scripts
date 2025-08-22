@@ -3,7 +3,13 @@
 #================== databases ==================
 #===============================================
 db_login() {
-    th_login
+    #th_login
+
+    if [[ -n "$1" ]]; then
+        db_quick_login "$@"
+        return 0
+    fi
+
     printf "\033c"
     create_header "DB"
     printf "Which database would you like to connect to?"
@@ -313,9 +319,12 @@ rds_connect(){
         local rds="$1"
         local port=$(find_available_port)
 
-        tsh proxy db "$rds" --db-user=tf_teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
-        tunnel_pid=$!
-        disown
+        {
+            set +m
+            tsh proxy db "$rds" --db-user=tf_teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
+            disown
+            set -m
+        } > /dev/null 2>&1
 
         # Wait for proxy to open (up to 10s)
         for i in {1..10}; do
@@ -451,13 +460,10 @@ rds_connect(){
             ;;
         2)
             printf "\nConnecting via \033[1;32mDBeaver\033[0m...\n"
-
-            list_postgres_databases "$rds"
             
             check_admin
 
-            if [ -z "$database" ]; then open_dbeaver "postgres" "$db_user";  return 1; fi
-            open_dbeaver "$database" "$db_user"
+            open_dbeaver "$rds" "$db_user"
             ;;
         *)
             echo "Invalid selection. Exiting."
@@ -552,31 +558,109 @@ mongo_connect() {
     done
 }
 
+# Load DB config from JSON
+load_db_config() {
+    local env="$1"
+    local db_type="$2"  # rds, mongo, etc.
+    # Handle bash vs zsh differences for script directory detection
+    if [[ -n "$ZSH_VERSION" ]]; then
+        local script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+    else
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    fi
+    local config_file="$script_dir/../th.config.json"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    jq -r ".db.${db_type}.${env} // empty" "$config_file"
+}
+
+# Quick DB login
+db_quick_login() {
+    local env_arg="$1"
+    local port=""
+    
+    # Validate port number if provided in any argument
+    for arg in "$@"; do
+        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+            if [[ "$arg" -lt 30000 || "$arg" -gt 50000 ]]; then
+                printf "\033[31m❌ Port number must be between 30000 and 50000\033[0m\n"
+                return 1
+            fi
+            port="$arg"
+            break
+        fi
+    done
+
+    if [[ -z "$env_arg" ]]; then
+        echo "Usage: db_quick_login <environment> [port]"
+        echo "Available environments: dev, sandbox, staging, usstaging, prod, usprod, etc."
+        echo "Port must be between 30000-50000 if specified"
+        return 1
+    fi
+    
+    # Check for privileged environments requiring elevated access
+    case "$env_arg" in
+        "pv"|"pb"|"upb"|"upv")
+            if ! tsh status | grep -q "sudo_teleport_rds_read_role"; then
+                db_elevated_login "sudo_teleport_rds_read_role" "$env_arg"
+            fi
+            ;;
+    esac
+
+    if [[ "$reauth_db" == "TRUE" ]]; then
+        # Once the user returns from the elevated login, re-authenticate with request id.
+        printf "\033c"
+        printf "Re-Authenticating"
+        tsh logout
+        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
+        reauth_db="FALSE"
+    fi
+    
+    local db_name
+    db_name=$(load_db_config "$env_arg" "rds")
+    
+    if [[ -z "$db_name" ]]; then
+        printf "\033c"
+        create_header "DB Login Error"
+        printf "\n\033[31m❌ Environment '$env_arg' not found for rds.\033[0m\n\n"
+        return 1
+    fi
+    
+    # Use specified port or find available one
+    if [[ -z "$port" ]]; then
+        port=$(find_available_port)
+    fi
+    
+    printf "\033c"
+    create_header "DB Quick Login"
+    open_dbeaver "$db_name" "tf_teleport_rds_read_user" "$port"
+}
+
 open_dbeaver() {
-    local database="$1"
+    local rds="$1"
     local db_user="$2"
-    local port=$(find_available_port)
-    printf "\n\033[1mConnecting to \033[1;32m$database\033[0m in \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
-    sleep 2
-    tsh proxy db "$rds" --db-name="$database" --port=$port --tunnel --db-user="$db_user" &> /dev/null &
+    local port="$3"
+    printf "\033[1mConnecting to \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
+    sleep 1
+    tsh proxy db "$rds" --db-name="postgres" --port=$port --tunnel --db-user="$db_user" &> /dev/null &
     printf "\033c" 
     create_header "DBeaver"
-    printf "\033[1mTo connect to the database, follow these steps: \033[0m\n"
+    printf "\033[1mTo connect, follow these steps: \033[0m\n"
     printf "\n1. Once DBeaver opens click create a new connection in the very top left.\n"
     printf "2. Select \033[1mPostgreSQL\033[0m as the database type.\n"
     printf "3. Use the following connection details:\n"
     printf " - Host:      \033[1mlocalhost\033[0m\n"
     printf " - Port:      \033[1m$port\033[0m\n"
-    printf " - Database:  \033[1m$database\033[0m\n"
+    printf " - Database:  \033[1mpostgres\033[0m\n"
     printf " - User:      \033[1m$db_user\033[0m\n"
     printf " - Password:  \033[1m(leave blank)\033[0m\n"
-    printf "4. Optionally, select show all databases.\n"
+    printf " - Select \033[1m'Show all databases' ☑️\033[0m\n"
     printf "5. Click 'Test Connection' to ensure everything is set up correctly.\n"
     printf "6. If the test is successful, click 'Finish' to save the connection.\n"
-    for i in {3..1}; do
-        printf "\033[1;32m. \033[0m"
-        sleep 1
-    done
-    printf "\r\033[K\n"
+    sleep 1
     open -a "DBeaver"
 }
