@@ -14,6 +14,7 @@ get_th_version() {
         cat "$version_cache" 2>/dev/null || echo "unknown"
     fi
 }
+
 th_login() {
     printf "\033c"
     create_header "Login"

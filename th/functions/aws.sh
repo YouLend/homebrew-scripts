@@ -227,10 +227,6 @@ aws_quick_login() {
         role_name="${role_value}" > /dev/null 2>&1
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     fi
-    
-
-    printf "\nFinish"
-    return 0
 
     tsh apps logout > /dev/null 2>&1
     tsh apps login "$account_name" --aws-role "$role_name" > /dev/null 2>&1

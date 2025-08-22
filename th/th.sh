@@ -133,6 +133,10 @@ th(){
       ;;
     update|u)
       brew upgrade youlend/tools/th
+      # Update version cache after manual upgrade
+      local version_cache="$HOME/.cache/th_version"
+      mkdir -p "$(dirname "$version_cache")"
+      brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
       ;;
     notifications|n)
       shift
