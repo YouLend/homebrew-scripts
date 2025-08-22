@@ -2,7 +2,7 @@
 #=================== AWS =======================
 #===============================================
 aws_login() {
-    #th_login
+    th_login
 
     tsh apps logout > /dev/null 2>&1
 
@@ -177,8 +177,35 @@ aws_quick_login() {
     if [ -z "$account_name" ]; then
         printf "\033c"
         create_header "AWS Login Error"
-        printf "\n\033[31m❌ Environment '$env_arg' not found in configuration.\033[0m\n\n"
-        printf "Available environments: dev, sandbox, staging, usstaging, admin, prod, usprod, corepgblue, corepggreen\n\n"
+        printf "\033[31m❌ Environment '$env_arg' not found in configuration.\033[0m\n\n"
+        printf "Available environments:\n"
+        
+        # Get config file path
+        if [[ -n "$ZSH_VERSION" ]]; then
+            local script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+        else
+            local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        fi
+        local config_file="$script_dir/../th.config.json"
+        
+        # List available AWS environments
+        if [[ -f "$config_file" ]]; then
+            # First pass: find the longest key
+            local max_key_len=0
+            while read -r key; do
+                if [ ${#key} -gt $max_key_len ]; then
+                    max_key_len=${#key}
+                fi
+            done < <(jq -r '.aws | keys[]' "$config_file" 2>/dev/null)
+            
+            # Second pass: format with proper alignment
+            jq -r '.aws | to_entries[] | "\(.key): \(.value.account)"' "$config_file" 2>/dev/null | while read -r line; do
+                local key=$(echo "$line" | cut -d':' -f1)
+                local account=$(echo "$line" | cut -d':' -f2- | sed 's/^ //')
+                printf "• \033[1m%-${max_key_len}s\033[0m : %s\n" "$key" "$account"
+            done
+        fi
+        printf "\n"
         return 1
     fi
 

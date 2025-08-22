@@ -1,16 +1,36 @@
 {
   "kube": {
-    "dev": "aslive-dev-eks-blue",
-    "sandbox": "aslive-sandbox-eks-blue",
-    "staging": "aslive-staging-eks-blue",
-    "usstaging": "aslive-usstaging-eks-blue",
     "admin": "headquarter-admin-eks-green",
+    "cpgb": "platform-corepgblue-eks-blue",
+    "cpgg": "platform-corepggreen-eks-green",
+    "dev": "aslive-dev-eks-blue",
     "prod": "live-prod-eks-blue",
     "uprod": "live-usprod-eks-blue",
-    "cpgb": "platform-corepgblue-eks-blue",
-    "cpgg": "platform-corepggreen-eks-green"
+    "sandbox": "aslive-sandbox-eks-blue",
+    "staging": "aslive-staging-eks-blue",
+    "usstaging": "aslive-usstaging-eks-blue"
   },
   "aws": {
+    "admin": {
+      "account": "yl-admin",
+      "role": "admin"
+    },
+    "cpg": {
+      "account": "yl-coreplayground",
+      "role": "coreplayground"
+    },
+    "cpgb": {
+      "account": "yl-corepgblue",
+      "role": "corepgblue"
+    },
+    "cpgg": {
+      "account": "yl-corepggreen",
+      "role": "corepggreen"
+    },
+    "cpgh": {
+      "account": "yl-corepghub",
+      "role": "corepghub"
+    },
     "dev": {
       "account": "yl-development",
       "role": "dev"
@@ -23,21 +43,13 @@
       "account": "yl-dataprod",
       "role": "dataprod"
     },
-    "sandbox": {
-      "account": "yl-sandbox",
-      "role": "sandbox"
+    "dpg": {
+      "account": "yl-dataplayground",
+      "role": "dataplayground"
     },
-    "stag": {
-      "account": "yl-staging",
-      "role": "staging"
-    },
-    "ustag": {
-      "account": "yl-usstaging",
-      "role": "usstaging"
-    },
-    "admin": {
-      "account": "yl-admin",
-      "role": "admin"
+    "dstaging": {
+      "account": "yl-datastaging",
+      "role": "datastaging"
     },
     "prod": {
       "account": "yl-production",
@@ -47,30 +59,34 @@
       "account": "yl-usproduction",
       "role": "usprod"
     },
-    "cpgb": {
-      "account": "yl-corepgblue",
-      "role": "corepgblue"
+    "sandbox": {
+      "account": "yl-sandbox",
+      "role": "sandbox"
     },
-    "cpgg": {
-      "account": "yl-corepggreen",
-      "role": "corepggreen"
+    "staging": {
+      "account": "yl-staging",
+      "role": "staging"
     },
-    "cpg": {
-      "account": "yl-coreplayground",
-      "role": "coreplayground"
+    "usstaging": {
+      "account": "yl-usstaging",
+      "role": "usstaging"
     }
   },
   "db":{
     "rds": {
-      "pv": "live-prod-bi-aurora-postgres-1",
-      "pb": "live-prod-bi-aurora-postgres-2",
-      "upv": "live-usprod-bi-aurora-postgres-1",
-      "upb": "live-usprod-bi-aurora-postgres-2",
+      "cpg": "platform-corepg-aurora-postgres-1",
       "dev": "db-dev-aurora-postgres-1",
+      "prod": "live-prod-view-aurora-postgres-1",
+      "uprod": "live-usprod-view-aurora-postgres-1",
+      "prodb": "live-prod-bi-aurora-postgres-2",
+      "uprodb": "live-usprod-bi-aurora-postgres-2",
       "sandbox": "db-sandbox-aurora-postgres-1",
       "staging": "db-staging-aurora-postgres-1",
-      "usstaging": "db-usstaging-aurora-postgres-1",
-      "cpg": "platform-corepg-aurora-postgres-1"
+      "usstaging": "db-usstaging-aurora-postgres-1"
+    },
+    "mongo": {
+      "prod": "mongodb-YLProd-Cluster-1",
+      "uprod": "mongodb-YLProd-Cluster-1"
     }
   }
 }

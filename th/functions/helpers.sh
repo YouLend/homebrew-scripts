@@ -1,6 +1,19 @@
 # ========================================================================================================================
 #                                                    Functional Helpers
 # ========================================================================================================================
+
+# Get cached th version (updated only on th updates)
+get_th_version() {
+    local version_cache="$HOME/.cache/th_version"
+    if [ -f "$version_cache" ]; then
+        cat "$version_cache"
+    else
+        # First time or cache missing - create it
+        mkdir -p "$(dirname "$version_cache")"
+        brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
+        cat "$version_cache" 2>/dev/null || echo "unknown"
+    fi
+}
 th_login() {
     printf "\033c"
     create_header "Login"

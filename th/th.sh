@@ -2,8 +2,6 @@
 # =============== Source Files ================
 # =============================================
 
-version="1.5.3"
-
 if [[ -n "$BASH_SOURCE" ]]; then
     SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 elif [[ -n "$ZSH_VERSION" ]]; then
@@ -17,6 +15,8 @@ source "$SCRIPT_DIR/functions/kube.sh"
 source "$SCRIPT_DIR/functions/aws.sh"
 source "$SCRIPT_DIR/functions/helpers.sh"
 source "$SCRIPT_DIR/functions/update.sh"
+
+version=$(get_th_version)
 
 th(){ 
   # Start background update check for interactive commands
@@ -107,7 +107,7 @@ th(){
 	      tsh login --auth=ad --proxy=youlend.teleport.sh:443
       fi
       ;;
-    -v)
+    v)
        echo $version
       ;;
     quickstart|qs)
@@ -138,8 +138,10 @@ th(){
       shift
       create_notification "1.50" "1.52" "prompt"
       ;;
-    *)
-
+    "")
       print_help $version | less -R
+      ;;
+    *)
+      printf "\nMate what? Try running $(ccode "th")\n"
   esac
 }

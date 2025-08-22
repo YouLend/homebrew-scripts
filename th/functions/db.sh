@@ -3,7 +3,7 @@
 #================== databases ==================
 #===============================================
 db_login() {
-    #th_login
+    th_login
 
     if [[ -n "$1" ]]; then
         db_quick_login "$@"
@@ -582,6 +582,73 @@ load_db_config() {
 db_quick_login() {
     local env_arg="$1"
     local port=""
+    local db_type="rds"  # Default to RDS
+    local env_name=""
+    
+    # Parse environment argument for type prefix (required)
+    if [[ "$env_arg" =~ ^m-(.+)$ ]]; then
+        db_type="mongo"
+        env_name="${BASH_REMATCH[1]}"
+    elif [[ "$env_arg" =~ ^r-(.+)$ ]]; then
+        db_type="rds"
+        env_name="${BASH_REMATCH[1]}"
+    else
+        # No valid prefix found - show error
+        printf "\033c"
+        create_header "DB Login Error"
+        printf "\033[31m❌ Invalid environment format: '$env_arg'\033[0m\n\n"
+        printf "Available environments:\n"
+        
+        # Get config file path
+        if [[ -n "$ZSH_VERSION" ]]; then
+            local script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+        else
+            local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        fi
+        local config_file="$script_dir/../th.config.json"
+        
+        # List available DB environments
+        if [[ -f "$config_file" ]]; then
+            # Collect all entries with prefixes
+            local all_entries=()
+            
+            # Add RDS entries with r- prefix
+            while read -r env; do
+                all_entries+=("r-$env")
+            done < <(jq -r '.db.rds | keys[]' "$config_file" 2>/dev/null)
+            
+            # Add MongoDB entries with m- prefix
+            while read -r env; do
+                all_entries+=("m-$env")
+            done < <(jq -r '.db.mongo | keys[]' "$config_file" 2>/dev/null)
+            
+            # Find longest entry for alignment
+            local max_key_len=0
+            for entry in "${all_entries[@]}"; do
+                if [ ${#entry} -gt $max_key_len ]; then
+                    max_key_len=${#entry}
+                fi
+            done
+            
+            # Display RDS entries
+            printf "\n\033[1mRDS:\033[0m\n"
+            jq -r '.db.rds | to_entries[] | "r-\(.key): \(.value)"' "$config_file" 2>/dev/null | while read -r line; do
+                local key=$(echo "$line" | cut -d':' -f1)
+                local db=$(echo "$line" | cut -d':' -f2- | sed 's/^ //')
+                printf "• \033[1m%-${max_key_len}s\033[0m : %s\n" "$key" "$db"
+            done
+            
+            # Display MongoDB entries
+            printf "\n\033[1mMongo:\033[0m\n"
+            jq -r '.db.mongo | to_entries[] | "m-\(.key): \(.value)"' "$config_file" 2>/dev/null | while read -r line; do
+                local key=$(echo "$line" | cut -d':' -f1)
+                local db=$(echo "$line" | cut -d':' -f2- | sed 's/^ //')
+                printf "• \033[1m%-${max_key_len}s\033[0m : %s\n" "$key" "$db"
+            done
+        fi
+        printf "\n"
+        return 1
+    fi
     
     # Validate port number if provided in any argument
     for arg in "$@"; do
@@ -594,22 +661,17 @@ db_quick_login() {
             break
         fi
     done
-
-    if [[ -z "$env_arg" ]]; then
-        echo "Usage: db_quick_login <environment> [port]"
-        echo "Available environments: dev, sandbox, staging, usstaging, prod, usprod, etc."
-        echo "Port must be between 30000-50000 if specified"
-        return 1
-    fi
     
-    # Check for privileged environments requiring elevated access
-    case "$env_arg" in
-        "pv"|"pb"|"upb"|"upv")
-            if ! tsh status | grep -q "sudo_teleport_rds_read_role"; then
-                db_elevated_login "sudo_teleport_rds_read_role" "$env_arg"
-            fi
-            ;;
-    esac
+    # Check for privileged environments requiring elevated access (only for RDS)
+    if [[ "$db_type" == "rds" ]]; then
+        case "$env_name" in
+            "pv"|"pb"|"upb"|"upv"|"prod"|"usprod")
+                if ! tsh status | grep -q "sudo_teleport_rds_read_role"; then
+                    db_elevated_login "sudo_teleport_rds_read_role" "$env_name"
+                fi
+                ;;
+        esac
+    fi
 
     if [[ "$reauth_db" == "TRUE" ]]; then
         # Once the user returns from the elevated login, re-authenticate with request id.
@@ -621,23 +683,29 @@ db_quick_login() {
     fi
     
     local db_name
-    db_name=$(load_db_config "$env_arg" "rds")
+    db_name=$(load_db_config "$env_name" "$db_type")
     
     if [[ -z "$db_name" ]]; then
         printf "\033c"
         create_header "DB Login Error"
-        printf "\n\033[31m❌ Environment '$env_arg' not found for rds.\033[0m\n\n"
+        printf "\n\033[31m❌ Environment '$env_name' not found for $db_type.\033[0m\n\n"
         return 1
-    fi
-    
-    # Use specified port or find available one
-    if [[ -z "$port" ]]; then
-        port=$(find_available_port)
     fi
     
     printf "\033c"
     create_header "DB Quick Login"
-    open_dbeaver "$db_name" "tf_teleport_rds_read_user" "$port"
+    printf "Connecting to \033[1;32m$db_type\033[0m database: \033[1;32m$db_name\033[0m\n\n"
+    
+    if [[ "$db_type" == "rds" ]]; then
+        # Use specified port or find available one
+        if [[ -z "$port" ]]; then
+            port=$(find_available_port)
+        fi
+        open_dbeaver "$db_name" "tf_teleport_rds_read_user" "$port"
+    elif [[ "$db_type" == "mongo" ]]; then
+        # Connect to MongoDB
+        mongo_connect "$db_name"
+    fi
 }
 
 open_dbeaver() {

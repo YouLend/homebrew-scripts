@@ -137,6 +137,10 @@ create_notification() {
                         #source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null || true
                         #echo "source \"$HOME/.bash_profile\" 2>/dev/null || source \"$HOME/.bashrc\" 2>/dev/null || true"
                     fi
+                    # Cache the new version
+                    local version_cache="$HOME/.cache/th_version"
+                    mkdir -p "$(dirname "$version_cache")"
+                    brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
                     printf "\n${indent}✅ \033[1;32mth updated successfully!\033[0m\n\n"
                 else
                     printf "\n${indent}❌ \033[1;31mUpdate failed. Please try manually.\033[0m\n\n"
@@ -151,9 +155,8 @@ create_notification() {
                 local mute_message="⏳ Update notifications muted until tomorrow."
                 local mute_len=${#mute_message}
                 local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
-                local mute_spaces=""
                 for ((i=0; i<mute_padding; i++)); do mute_spaces+=" "; done
-                printf "\n${indent}${mute_spaces}${mute_message}\n"
+                printf "\n${indent}${mute_message}\n"
                 sleep 2
                 ;;
             255) # Quit
