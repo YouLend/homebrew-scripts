@@ -124,16 +124,22 @@ create_notification() {
         case $result in
             0) # Yes selected - perform update
                 printf "\n${indent}🔄 Updating th...\n\n"
-                # Capture and indent brew output
-                brew upgrade youlend/tools/th > /dev/null 2>&1
+                
+                # Use load function with brew upgrade
+                update_th() {
+                    sleep 3
+                    #brew upgrade youlend/tools/th > /dev/null 2>&1
+                }
+                
+                load update_th "Installing update..."
                 if [ $? -eq 0 ]; then
                     # Automatically source the shell profile to reload th
                     printf "${indent}🔄 Reloading th...\n"
                     local shell_name=$(basename "$SHELL")
                     if [ "$shell_name" = "zsh" ]; then
-                        source "$HOME/.zshrc" 2>/dev/null || true
+                        source "$HOME/.zshrc" 2>/dev/null
                     elif [ "$shell_name" = "bash" ]; then
-                        source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null || true
+                        source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null
                     fi
                     # Cache the new version
                     local version_cache="$HOME/.cache/th_version"
