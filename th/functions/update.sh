@@ -131,11 +131,9 @@ create_notification() {
                     printf "${indent}🔄 Reloading th...\n"
                     local shell_name=$(basename "$SHELL")
                     if [ "$shell_name" = "zsh" ]; then
-                        #source "$HOME/.zshrc" 2>/dev/null || true
-                        #echo "source \"$HOME/.zshrc\" 2>/dev/null || true"
+                        source "$HOME/.zshrc" 2>/dev/null || true
                     elif [ "$shell_name" = "bash" ]; then
-                        #source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null || true
-                        #echo "source \"$HOME/.bash_profile\" 2>/dev/null || source \"$HOME/.bashrc\" 2>/dev/null || true"
+                        source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null || true
                     fi
                     # Cache the new version
                     local version_cache="$HOME/.cache/th_version"
