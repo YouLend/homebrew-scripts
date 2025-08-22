@@ -132,18 +132,19 @@ create_notification() {
                 
                 load update_th "Installing update..."
                 if [ $? -eq 0 ]; then
-                    # Automatically source the shell profile to reload th
-                    printf "${indent}🔄 Reloading th...\n"
-                    local shell_name=$(basename "$SHELL")
-                    if [ "$shell_name" = "zsh" ]; then
-                        source "$HOME/.zshrc" 2>/dev/null
-                    elif [ "$shell_name" = "bash" ]; then
-                        source "$HOME/.bash_profile" 2>/dev/null || source "$HOME/.bashrc" 2>/dev/null
-                    fi
-                    # Cache the new version
+                    # Cache the new version FIRST
                     local version_cache="$HOME/.cache/th_version"
                     mkdir -p "$(dirname "$version_cache")"
                     brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
+                    
+                    # Then reload th
+                    printf "${indent}🔄 Reloading th...\n"
+                    local shell_name=$(basename "$SHELL")
+                    if [ "$shell_name" = "zsh" ]; then
+                        source "$HOME/.zshrc" 
+                    elif [ "$shell_name" = "bash" ]; then
+                        source "$HOME/.bash_profile" || source "$HOME/.bashrc"
+                    fi
                     printf "\n${indent}✅ \033[1;32mth updated successfully!\033[0m\n\n"
                 else
                     printf "\n${indent}❌ \033[1;31mUpdate failed. Please try manually.\033[0m\n\n"
