@@ -531,22 +531,8 @@ mongo_connect() {
             fi
             ;;
         2)
-            # Log into the selected db.
-            printf "\033c"
-            create_header "Atlas GUI"
-            printf "Logging into: \033[1;32m$db\033[0m as \033[1;32m$db_user\033[0m\n"
-            tsh db login "$db" --db-user=$db_user --db-name="admin" > /dev/null 2>&1
-            printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
-
-            # Create a proxy for the selected db.
-            printf "\nCreating proxy for \033[1;32m$db\033[0m...\n"
-            local mongo_port=$(find_available_port)
-            tsh proxy db --tunnel --port=$mongo_port $db > /dev/null 2>&1 &
-
-            # Open MongoDB Compass
-            printf "\nOpening MongoDB compass...\n"
-            open "mongodb://localhost:$mongo_port/?directConnection=true"
-            break
+            open_atlas $db $port
+            return
             ;;
         *)
             printf "\n\033[31mInvalid selection. Please enter 1 or 2.\033[0m\n"
@@ -556,6 +542,35 @@ mongo_connect() {
             ;;
         esac
     done
+}
+
+open_atlas() {
+    db="$1"
+    port="$2"
+    case "$db" in
+        "mongodb-YLUSProd-Cluster-1")
+        db_user="teleport-usprod"
+        ;;
+        "mongodb-YLProd-Cluster-1")
+        db_user="teleport-prod"
+        ;;
+        "mongodb-YLSandbox-Cluster-1")
+        db_user="teleport-sandbox"
+        ;;
+    esac
+    printf "\033c"
+    create_header "Mongo Atlas"
+    printf "Logging into: \033[1;32m$db\033[0m as \033[1;32m$db_user\033[0m\n"
+    tsh db login "$db" --db-user=$db_user --db-name="admin" > /dev/null 2>&1
+    printf "\n✅ \033[1;32mLogged in successfully!\033[0m\n"
+
+    # Create a proxy for the selected db.
+    printf "\nCreating proxy for \033[1;32m$db\033[0m...\n"
+    tsh proxy db --tunnel --port=$port $db > /dev/null 2>&1 &
+
+    # Open MongoDB Compass
+    printf "\nOpening MongoDB compass...\n"
+    open "mongodb://localhost:$port/?directConnection=true"
 }
 
 # Load DB config from JSON
@@ -584,14 +599,13 @@ db_quick_login() {
     local port=""
     local db_type="rds"  # Default to RDS
     local env_name=""
-    
-    # Parse environment argument for type prefix (required)
-    if [[ "$env_arg" =~ ^m-(.+)$ ]]; then
+
+    if [[ "$env_arg" == m-* ]]; then
         db_type="mongo"
-        env_name="${BASH_REMATCH[1]}"
-    elif [[ "$env_arg" =~ ^r-(.+)$ ]]; then
+        env_name="${env_arg#m-}"
+    elif [[ "$env_arg" == r-* ]]; then
         db_type="rds"
-        env_name="${BASH_REMATCH[1]}"
+        env_name="${env_arg#r-}"
     else
         # No valid prefix found - show error
         printf "\033c"
@@ -694,17 +708,13 @@ db_quick_login() {
     
     printf "\033c"
     create_header "DB Quick Login"
-    printf "Connecting to \033[1;32m$db_type\033[0m database: \033[1;32m$db_name\033[0m\n\n"
+
+    if [[ -z "$port" ]]; then port=$(find_available_port); fi
     
     if [[ "$db_type" == "rds" ]]; then
-        # Use specified port or find available one
-        if [[ -z "$port" ]]; then
-            port=$(find_available_port)
-        fi
         open_dbeaver "$db_name" "tf_teleport_rds_read_user" "$port"
     elif [[ "$db_type" == "mongo" ]]; then
-        # Connect to MongoDB
-        mongo_connect "$db_name"
+        open_atlas "$db_name" "$port"
     fi
 }
 

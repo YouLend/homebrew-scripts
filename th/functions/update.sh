@@ -156,7 +156,7 @@ create_notification() {
             1) # No selected - mute notifications
                 local daily_cache_file="$HOME/.cache/th_update_check"
                 echo "MUTED_UNTIL_TOMORROW" > "$daily_cache_file"
-                local mute_message="⏳ Update notifications muted until tomorrow."
+                local mute_message="⏳ Update notifications muted for 1 hour."
                 local mute_len=${#mute_message}
                 local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
                 for ((i=0; i<mute_padding; i++)); do mute_spaces+=" "; done
@@ -433,12 +433,14 @@ get_changelog() {
         local changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/th-v$version" | jq -r '.body // empty' 2>/dev/null)
         
         if [[ -n "$changelog_body" && "$changelog_body" != "null" ]]; then
-            echo "$changelog_body"
+            # Extract content after "Summary:" header
+            echo "$changelog_body" | sed -n '/^Summary:/,$ { /^Summary:/d; p; }'
         else
             # Fallback: try without 'v' prefix
             changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/$version" | jq -r '.body // empty' 2>/dev/null)
             if [[ -n "$changelog_body" && "$changelog_body" != "null" ]]; then
-                echo "$changelog_body"
+                # Extract content after "Summary:" header
+                echo "$changelog_body" | sed -n '/^Summary:/,$ { /^Summary:/d; p; }'
             else
                 echo "No changelog available for version $version"
             fi
