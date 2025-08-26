@@ -1,125 +1,3 @@
-# ========================================================================================================================
-#                                                    Functional Helpers
-# ========================================================================================================================
-
-# Get cached th version (updated only on th updates)
-get_th_version() {
-    local version_cache="$HOME/.cache/th_version"
-    if [ -f "$version_cache" ]; then
-        cat "$version_cache"
-    else
-        # First time or cache missing - create it
-        mkdir -p "$(dirname "$version_cache")"
-        brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
-        cat "$version_cache" 2>/dev/null || echo "unknown"
-    fi
-}
-
-th_login() {
-    printf "\033c"
-    create_header "Login"
-    printf "Checking login status...\n"
-    # Check if already logged in
-    if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-        cprintf "\n✅ \033[1mAlready logged in to Teleport!\033[0m\n"
-        sleep 1
-        return 0
-    fi
-    printf "\nLogging you into Teleport...\n"
-    tsh login --auth=ad --proxy=youlend.teleport.sh:443 > /dev/null 2>&1
-    # Wait until login completes (max 15 seconds)
-    for i in {1..30}; do
-        if tsh status 2>/dev/null | grep -q 'Logged in as:'; then
-        printf "\n\033[1;32mLogged in successfully!\033[0m\n"
-        sleep 1
-        return 0
-        fi
-        sleep 0.5
-    done
-
-    printf "\n❌ \033[1;31mTimed out waiting for Teleport login.\033[0m"
-    return 1
-}
-
-th_kill() {
-    printf "\033c"
-    create_header "Cleanup"
-    printf "🧹 \033[1mCleaning up Teleport session...\033[0m"
-
-    # Enable nullglob in Zsh to prevent errors from unmatched globs
-    if [ -n "$ZSH_VERSION" ]; then
-        setopt NULL_GLOB
-    fi
-
-    # Remove temp credential files
-    for f in /tmp/yl* /tmp/tsh* /tmp/admin_*; do
-        [ -e "$f" ] && rm -f "$f"
-    done
-
-    # Determine which shell profile to clean
-    local shell_name shell_profile
-    shell_name=$(basename "$SHELL")
-
-    if [ "$shell_name" = "zsh" ]; then
-        shell_profile="$HOME/.zshrc"
-    elif [ "$shell_name" = "bash" ]; then
-        shell_profile="$HOME/.bash_profile"
-    else
-        echo "Unsupported shell: $shell_name. Skipping profile cleanup."
-        shell_profile=""
-    fi
-
-    # Remove any lines sourcing proxy envs from the profile
-    if [ -n "$shell_profile" ] && [ -f "$shell_profile" ]; then
-        sed -i.bak '/[[:space:]]*source \/tmp\/tsh_proxy_/d' "$shell_profile"
-        printf "\n\n✏️ \033[0mRemoving source lines from $shell_profile...\033[0m"
-    fi
-
-    printf "\n📃 \033[0mRemoving ENVs...\033[0m"
-
-    unset AWS_ACCESS_KEY_ID
-    unset AWS_SECRET_ACCESS_KEY
-    unset AWS_CA_BUNDLE
-    unset HTTPS_PROXY
-    unset ACCOUNT
-    unset ROLE
-    unset AWS_DEFAULT_REGION
-
-    printf "\n💀 \033[0mKilling all running tsh proxies...\033[0m\n\n"
-    # Kill all tsh proxy aws processes
-    ps aux | grep '[t]sh proxy aws' | awk '{print $2}' | xargs kill 2>/dev/null
-    ps aux | grep '[t]sh proxy db' | awk '{print $2}' | xargs kill 2>/dev/null
-    
-    tsh logout > /dev/null 2>&1
-    tsh apps logout > /dev/null 2>&1
-    
-    printf "\n✅ \033[1;32mLogged out of all apps, clusters & proxies\033[0m\n\n"
-}
-
-find_available_port() {
-    local port
-    for i in {1..100}; do
-        port=$((RANDOM % 20000 + 40000))
-        if ! nc -z localhost $port &> /dev/null; then
-            echo $port
-            return 0
-        fi
-    done
-    echo 50000
-}
-
-load() {
-    local job="$1"
-    local message="${2:-"Loading.."}"
-    {
-        set +m
-        $job &
-        wave_loader $! "$message"
-        wait
-        set -m
-    }   2>/dev/null
-}
-
 wave_loader() {
     local pid=$1
     local message="${2:-"Loading.."}"
@@ -213,10 +91,6 @@ wave_loader() {
     printf '\033[?25h'
 }
 
-# ========================================================================================================================
-#                                                       Visual Helpers
-# ========================================================================================================================
-
 center_content() {
     # Get terminal width and calculate centering
     local term_width=$(tput cols)
@@ -302,17 +176,19 @@ print_help() {
     print_logo "$version" "$center_spaces"
     create_header "Usage" "$center_spaces" 1
     printf "%s     ╚═ \033[1mth aws  [options] | a\033[0m   : AWS login.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth db             | d\033[0m   : Log into our various databases.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth db   [options] | d\033[0m   : Database login.\n" "$center_spaces"
     printf "%s     ╚═ \033[1mth kube [options] | k\033[0m   : Kubernetes login.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth terra          | t\033[0m   : Quick log-in to Terragrunt.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth logout         | l\033[0m   : Clean up Teleport session.\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mth login          | li\033[0m  : Simple log in to Teleport\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth terra          | t\033[0m   : Quick log-in to yl-admin.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth login          | l\033[0m   : Simple log in to Teleport\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth logout         | c\033[0m   : Clean up Teleport session.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth version        | v\033[0m   : Show the current version.\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mth update         | u\033[0m   : Check for th updates.\n" "$center_spaces"
     printf "%s     \033[0m\033[38;5;245m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[1;34m\033[0m\n" "$center_spaces"
     printf "%s     For help, and \033[1m[options]\033[0m info, run \033[1mth a/k/d etc.. -h\033[0m\n\n" "$center_spaces"
     create_header "Docs" "$center_spaces" 1
     printf "%s     Run the following commands to access the documentation pages: \n" "$center_spaces"
-    printf "%s     ╚═ \033[1mQuickstart:       | th qs\033[0m\n" "$center_spaces"
-    printf "%s     ╚═ \033[1mDocs:             | th doc\033[0m\n\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mDocs:             | th doc\033[0m\n" "$center_spaces"
+    printf "%s     ╚═ \033[1mQuickstart:       | th qs\033[0m\n\n" "$center_spaces"
     create_header "Extras" "$center_spaces" 1
     printf "%s     Run the following commands to access the extra features: \n" "$center_spaces"
     printf "%s     ╚═ \033[1mth loader               \033[0m: Run loader animation.\n" "$center_spaces"
