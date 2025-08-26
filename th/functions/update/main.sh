@@ -1,8 +1,7 @@
 create_notification() {
     local current_version="$1"
     local latest_version="$2"
-    local prompt="$3"  # Optional prompt for user input
-    local changelog="$4"  # Optional changelog entries
+    local changelog="$3"  # Optional changelog entries
     
     
     # Capture current terminal content to a temp file
@@ -112,68 +111,63 @@ create_notification() {
             fi
         done <<< "$changelog"
     fi
+
+
+    printf "\n\n\n"  # Add space before menu
     
-    # If prompt is provided, add menu underneath
-    if [ -n "$prompt" ]; then
-        printf "\n\n\n"  # Add space before menu
-        
-        # Call embedded horizontal menu (now works outside the box)
-        embedded_horizontal_menu "$indent" "$box_width"
-        local result=$?
-        # Handle the update logic based on user selection
-        case $result in
-            0) # Yes selected - perform update
-                printf "\n${indent}🔄 Updating th...\n\n"
+    # Call embedded horizontal menu (now works outside the box)
+    embedded_horizontal_menu "$indent" "$box_width"
+    local result=$?
+    # Handle the update logic based on user selection
+    case $result in
+        0) # Yes selected - perform update
+            printf "\n${indent}🔄 Updating th...\n\n"
+            
+            # Use load function with brew upgrade
+            update_th() {
+                brew upgrade youlend/tools/th > /dev/null 2>&1
+            }
+            
+            load update_th "Installing update..."
+            if [ $? -eq 0 ]; then
+                # Cache the new version FIRST
+                local version_cache="$HOME/.cache/th_version"
+                mkdir -p "$(dirname "$version_cache")"
+                brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
                 
-                # Use load function with brew upgrade
-                update_th() {
-                    brew upgrade youlend/tools/th > /dev/null 2>&1
-                }
-                
-                load update_th "Installing update..."
-                if [ $? -eq 0 ]; then
-                    # Cache the new version FIRST
-                    local version_cache="$HOME/.cache/th_version"
-                    mkdir -p "$(dirname "$version_cache")"
-                    brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
-                    
-                    # Then reload th
-                    printf "${indent}🔄 Reloading th...\n"
-                    local shell_name=$(basename "$SHELL")
-                    if [ "$shell_name" = "zsh" ]; then
-                        source "$HOME/.zshrc" 
-                    elif [ "$shell_name" = "bash" ]; then
-                        source "$HOME/.bash_profile" || source "$HOME/.bashrc"
-                    fi
-                    printf "\n${indent}✅ \033[1;32mth updated successfully!\033[0m\n\n"
-                else
-                    printf "\n${indent}❌ \033[1;31mUpdate failed. Please try manually.\033[0m\n\n"
+                # Then reload th
+                printf "${indent}🔄 Reloading th...\n"
+                local shell_name=$(basename "$SHELL")
+                if [ "$shell_name" = "zsh" ]; then
+                    source "$HOME/.zshrc" 
+                elif [ "$shell_name" = "bash" ]; then
+                    source "$HOME/.bash_profile" || source "$HOME/.bashrc"
                 fi
-                stty echo icanon
-                printf "                  \033[4mPress \033[1;5menter\033[0;4m to return..."
-                read -n 1
-                ;;
-            1) # No selected - mute notifications
-                local daily_cache_file="$HOME/.cache/th_update_check"
-                echo "MUTED_UNTIL_TOMORROW" > "$daily_cache_file"
-                local mute_message="⏳ Update notifications muted for 1 hour."
-                local mute_len=${#mute_message}
-                local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
-                local mute_spaces=""
-                for ((i=0; i<mute_padding; i++)); do mute_spaces+=" "; done
-                printf "\n${indent}${mute_spaces}${mute_message}\n"
-                sleep 1
-                ;;
-            255) # Quit
-                printf "\n${indent}❌ Update check cancelled.\n"
-                sleep 1
-                ;;
-        esac
-        
-        # Restore the original screen content after all update activity is complete
-        printf "\033[?1049l"  # Switch back to main screen buffer
-    else
-        # Restore screen for non-prompt notifications
-        printf "\033[?1049l"  # Switch back to main screen buffer
-    fi
+                printf "\n${indent}✅ \033[1;32mth updated successfully!\033[0m\n\n"
+            else
+                printf "\n${indent}❌ \033[1;31mUpdate failed. Please try manually.\033[0m\n\n"
+            fi
+            stty echo icanon
+            printf "                  \033[4mPress \033[1;5menter\033[0;4m to return..."
+            read -n 1
+            ;;
+        1) # No selected - mute notifications
+            local daily_cache_file="$HOME/.cache/th_update_check"
+            echo "MUTED_UNTIL_TOMORROW" > "$daily_cache_file"
+            local mute_message="⏳ Update notifications muted for 1 hour."
+            local mute_len=${#mute_message}
+            local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
+            local mute_spaces=""
+            for ((i=0; i<mute_padding; i++)); do mute_spaces+=" "; done
+            printf "\n${indent}${mute_spaces}${mute_message}\n"
+            sleep 1
+            ;;
+        255) # Quit
+            printf "\n${indent}❌ Update check cancelled.\n"
+            sleep 1
+            ;;
+    esac
+    
+    # Restore the original screen content after all update activity is complete
+    printf "\033[?1049l"  # Switch back to main screen buffer
 }

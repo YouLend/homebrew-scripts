@@ -15,7 +15,7 @@ check_th_updates_background() {
         local time_diff=$((current_time - cache_time))
         
         # If cache is less than 24 hours old, use cached result
-        if [ $time_diff -lt 600 ]; then
+        if [ $time_diff -lt 3600 ]; then
             local cached_result=$(cat "$daily_cache_file" 2>/dev/null)
             # If muted, keep it muted until 24 hours pass
             if [[ "$cached_result" == "MUTED_UNTIL_TOMORROW" ]]; then
@@ -86,8 +86,8 @@ show_update_notification() {
             # Get changelog from GitHub release
             local changelog=""
             changelog=$(get_changelog "$latest_version")
-            
-            create_notification "$current_version" "$latest_version" "prompt" "$changelog"
+
+            create_notification "$current_version" "$latest_version" "$changelog"
 
             return 0
         fi
@@ -99,23 +99,15 @@ get_changelog() {
     local version="$1"
     local repo="YouLend/homebrew-scripts"  # Update with your actual repo
     
-    
     if command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         # Fetch changelog from GitHub releases API
         local changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/th-v$version" | jq -r '.body // empty' 2>/dev/null)
-        
-        if [[ -n "$changelog_body" && "$changelog_body" != "null" ]]; then
-            # Extract content after "Summary:" header (including ### Summary:)
-            echo "$changelog_body" | sed -n '/Summary:/,$ { /Summary:/d; p; }' | grep -E '^- ' | head -10
+
+        if [[ -n "$changelog_body" && "$changelog_body" != "null" && "$changelog_body" != "empty" ]]; then
+            # Extract content after "Summary:" header (with any number of hashtags)
+            echo "$changelog_body" | sed -n '/^### Summary/,$ p' | grep '^-' | head -10
         else
-            # Fallback: try without 'v' prefix
-            changelog_body=$(curl -s "https://api.github.com/repos/$repo/releases/tags/$version" | jq -r '.body // empty' 2>/dev/null)
-            if [[ -n "$changelog_body" && "$changelog_body" != "null" ]]; then
-                # Extract content after "Summary:" header (including ### Summary:)
-                echo "$changelog_body" | sed -n '/Summary:/,$ { /Summary:/d; p; }' | grep -E '^- ' | head -10
-            else
-                echo "No changelog available for version $version"
-            fi
+            echo "No changelog available for version $version"
         fi
     else
         echo "curl or jq not available - changelog unavailable"

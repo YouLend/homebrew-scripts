@@ -153,8 +153,8 @@ th(){
       ;;
     notifications|n)
       shift
-      changelog=$(get_changelog "1.5.6")
-      create_notification "1.5.5" "1.5.6" "prompt" "$changelog"
+      changelog=$(get_changelog "1.5.7")
+      create_notification "1.5.5" "1.5.7" "$changelog"
       ;;
     "")
       print_help $version | less -R
