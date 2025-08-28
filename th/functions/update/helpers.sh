@@ -105,7 +105,7 @@ get_changelog() {
 
         if [[ -n "$changelog_body" && "$changelog_body" != "null" && "$changelog_body" != "empty" ]]; then
             # Extract content after "Summary:" header (with any number of hashtags)
-            echo "$changelog_body" | sed -n '/^### Summary/,$ p' | grep '^-' | head -10
+            echo "$changelog_body" | sed -n '/^#+.*Summary/,$ p' | grep '^-' | head -10
         else
             echo "No changelog available for version $version"
         fi
