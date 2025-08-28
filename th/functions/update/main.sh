@@ -93,21 +93,53 @@ create_notification() {
             fi
         done <<< "$changelog"
         
-        # Align with menu option text (2 spaces in from button edge)
-        local option1_width=8  # Fixed width for "Yes" + padding
-        local separator="                           "  # Fixed separator 
-        local total_menu_width=$((option1_width + ${#separator} + 8))
-        local menu_padding=$(( (box_width - total_menu_width) / 2 ))
-        local changelog_spaces=""
-        for ((i=0; i<menu_padding+2; i++)); do changelog_spaces+=" "; done
+        # Set changelog indentation (center based on longest line)
+        local padding=$(( (box_width - max_changelog_len) / 2 ))
+        local min_padding=$(( box_width / 18 ))
+        [[ $padding -lt $min_padding ]] && padding=$min_padding
+        local changelog_spaces=$(printf "%*s" $padding "")
+
         
-        # Second pass: display all lines with same left alignment
+        # Second pass: display all lines with wrapping
+        local max_line_width=$(( box_width - ${#changelog_spaces} - 4 ))
         while IFS= read -r line || [ -n "$line" ]; do
             if [ -n "$line" ]; then
                 # Remove markdown dashes and convert to bullet
                 local clean_line=$(echo "$line" | sed 's/^- //')
                 local changelog_line="• $clean_line"
-                printf "${indent}${changelog_spaces}${changelog_line}\n"
+                
+                # Wrap long lines preserving words
+                if [ ${#changelog_line} -gt $max_line_width ]; then
+                    local remaining="$clean_line"
+                    local first_line=true
+                    while [ -n "$remaining" ]; do
+                        if [ "$first_line" = true ]; then
+                            local prefix="• "
+                            local available=$(( max_line_width - 2 ))
+                            first_line=false
+                        else
+                            local prefix="  "
+                            local available=$(( max_line_width - 2 ))
+                        fi
+                        
+                        if [ ${#remaining} -le $available ]; then
+                            printf "${indent}${changelog_spaces}${prefix}${remaining}\n"
+                            break
+                        fi
+                        
+                        # Find last space within available length
+                        local chunk="${remaining:0:$available}"
+                        local last_space=$(echo "$chunk" | grep -o ' ' | wc -l)
+                        if [ $last_space -gt 0 ]; then
+                            chunk=$(echo "$chunk" | sed 's/\(.*\) .*/\1/')
+                        fi
+                        
+                        printf "${indent}${changelog_spaces}${prefix}${chunk}\n"
+                        remaining="${remaining:$(( ${#chunk} + 1 ))}"
+                    done
+                else
+                    printf "${indent}${changelog_spaces}${changelog_line}\n"
+                fi
             fi
         done <<< "$changelog"
     fi
