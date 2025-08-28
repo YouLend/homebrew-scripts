@@ -15,10 +15,10 @@ check_th_updates_background() {
         local time_diff=$((current_time - cache_time))
         
         # If cache is less than 24 hours old, use cached result
-        if [ $time_diff -lt 3600 ]; then
+        if [ $time_diff -lt 3600]; then
             local cached_result=$(cat "$daily_cache_file" 2>/dev/null)
             # If muted, keep it muted until 24 hours pass
-            if [[ "$cached_result" == "MUTED_UNTIL_TOMORROW" ]]; then
+            if [[ "$cached_result" == "MUTED" ]]; then
                 cp "$daily_cache_file" "$session_cache_file" 2>/dev/null
                 echo "$session_cache_file"
                 return
@@ -77,7 +77,7 @@ show_update_notification() {
         rm -f "$update_cache_file" 2>/dev/null
         
         # Check if notifications are muted
-        if [[ "$result" == "MUTED_UNTIL_TOMORROW" ]]; then
+        if [[ "$result" == "MUTED" ]]; then
             return 0  # Skip notification silently
         elif [[ "$result" == UPDATE_AVAILABLE:* ]]; then
             local current_version=$(echo "$result" | cut -d':' -f2)

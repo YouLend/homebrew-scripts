@@ -153,7 +153,7 @@ create_notification() {
             ;;
         1) # No selected - mute notifications
             local daily_cache_file="$HOME/.cache/th_update_check"
-            echo "MUTED_UNTIL_TOMORROW" > "$daily_cache_file"
+            echo "MUTED" > "$daily_cache_file"
             local mute_message="⏳ Update notifications muted for 1 hour."
             local mute_len=${#mute_message}
             local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
