@@ -112,7 +112,7 @@ db_login() {
                 temp_json_file=$(mktemp)
                 
                 check_atlas_access() {
-                    tsh status | grep -q "atlas-can-read" && echo "true" > "$temp_atlas_file" || echo "false" > "$temp_atlas_file"
+                    tsh status | grep -q "atlas-read-only" && echo "true" > "$temp_atlas_file" || echo "false" > "$temp_atlas_file"
                     tsh db ls --format=json > "$temp_json_file"
                 }
 
@@ -156,10 +156,12 @@ db_login() {
                 
                 if [[ $db_choice -gt 0 && $db_choice -le $db_count ]]; then
                     selected_db=$(echo "$filtered_dbs" | tr -d '\000-\037' | jq -r ".[$selected_index].metadata.name")
-                    
                     # If user doesn't have atlas access, trigger elevated login
                     if [[ "$has_atlas_access" != "true" ]]; then
                         db_elevated_login "atlas-read-only" "$selected_db"
+                        if [[ $? -ne 0 ]]; then
+                            return 0
+                        fi
                     fi
                 else
                     printf "\n\033[31mInvalid selection\033[0m\n"
@@ -168,19 +170,11 @@ db_login() {
                 break
                 ;;
             *)
-                printf "\n\033[31mInvalid selection here2\033[0m\n"
+                printf "\n\033[31mInvalid selection here\033[0m\n"
                 ;;
         esac
     done
-    if [[ "$reauth_db" == "TRUE" ]]; then
-        # Once the user returns from the elevated login, re-authenticate with request id.
-        printf "\033c"
-        create_header "Re-Authenticating"
-        tsh logout
-        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-        reauth_db="FALSE"
-    fi
-
+    
     if [[ "$exit_db" == "TRUE" ]]; then
         exit_db="FALSE"
         return 0
@@ -189,11 +183,13 @@ db_login() {
     printf "\n\033[1;32m$selected_db\033[0m selected.\n"
     sleep 1
 
+    if [[ -z "$port" ]]; then port=$(find_available_port); fi 
+
     # If the first column is ">", use the second column; otherwise, use the first.
     if [[ "$db_type" == "rds" ]]; then
-        rds_connect "$selected_db"
+        rds_connect "$selected_db" "$port"
         return 0
     fi
-    mongo_connect "$selected_db"
+    mongo_connect "$selected_db" "$port"
     return 0
 }

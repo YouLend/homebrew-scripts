@@ -128,6 +128,6 @@ th(){
       print_help $version | less -R
       ;;
     *)
-      printf "\nMate what? Try running $(ccode "th")\n"
+      printf "\n🤔 Mate what? Try running $(ccode "th")\n"
   esac
 }

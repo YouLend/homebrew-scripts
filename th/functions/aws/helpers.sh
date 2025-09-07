@@ -14,19 +14,21 @@ aws_elevated_login(){
             printf "\n\033[1mEnter request reason:\033[0m "
             read reason
 
-            role=$([ "$app" = "yl-production" ] && echo "sudo_prod_role" || echo "sudo_usprod_role")
+            request_role="sudo_${default_role}_role"
             
-            request_output=$(tsh request create --roles $role --reason "$reason" 2>&1 | tee /dev/tty)
-            REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
+            echo
+            tsh request create --roles $request_role --reason "$reason" --max-duration 4h  2>&1 
             
-            printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
             reauth_aws="TRUE"
-            return 
+            return 0
         elif [[ $request =~ ^[Nn]$ ]]; then
-            printf "\n\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
+            printf "\033c"
+            create_header "AWS Login"
+            printf "\033[1mLogging you in to \033[1;32m$app\033[0m \033[1mas\033[0m \033[1;32m$default_role\033[0m" 
             tsh apps login "$app" > /dev/null 2>&1
             printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
             create_proxy "$app" "$default_role"
+            reauth_aws="FALSE"
             return 0
         else
             printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"

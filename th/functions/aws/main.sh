@@ -62,18 +62,12 @@ aws_login() {
 
     if [ -z "$role_section" ]; then
         aws_elevated_login "$app" "$default_role"
-        if [ $? -eq 0 ]; then
+        if [ "$reauth_aws" == "FALSE" ]; then
             return 0
         fi
     fi
 
     if [[ "$reauth_aws" == "TRUE" ]]; then
-        # Once the user returns from the elevated login, re-authenticate with request id.
-        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
-        tsh logout
-        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-        reauth_aws="FALSE"
-
         # Refresh login output
         login_output=$(tsh apps login "$app" 2>&1)
 

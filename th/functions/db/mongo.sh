@@ -1,5 +1,6 @@
 mongo_connect() {
     local db="$1"
+    local port="$2"
     case "$db" in
         "mongodb-YLUSProd-Cluster-1")
         db_user="teleport-usprod"

@@ -14,17 +14,17 @@
     },
     "uprod": {
       "cluster": "live-usprod-eks-blue",
-      "request_role": "sudo_teleport_kube_write_role"
-    },
-    "sandbox": {
-      "cluster": "aslive-sandbox-eks-blue",
       "request_role": "production-eks-clusters"
     },
-    "staging": {
+    "sb": {
+      "cluster": "aslive-sandbox-eks-blue",
+      "request_role": ""
+    },
+    "stag": {
       "cluster": "aslive-staging-eks-blue",
       "request_role": ""
     },
-    "usstaging": {
+    "ustag": {
       "cluster": "aslive-usstaging-eks-blue",
       "request_role": ""
     }
@@ -66,7 +66,7 @@
       "account": "yl-dataplayground",
       "role": "dataplayground"
     },
-    "dstaging": {
+    "dstag": {
       "account": "yl-datastaging",
       "role": "datastaging"
     },
@@ -78,15 +78,15 @@
       "account": "yl-usproduction",
       "role": "usprod"
     },
-    "sandbox": {
+    "sb": {
       "account": "yl-sandbox",
       "role": "sandbox"
     },
-    "staging": {
+    "stag": {
       "account": "yl-staging",
       "role": "staging"
     },
-    "usstaging": {
+    "ustag": {
       "account": "yl-usstaging",
       "role": "usstaging"
     }
@@ -117,15 +117,15 @@
         "database": "live-usprod-bi-aurora-postgres-2",
         "request_role": "sudo_teleport_rds_read_role"
       },
-      "sandbox": {
+      "sb": {
         "database": "db-sandbox-aurora-postgres-1",
         "request_role": ""
       },
-      "staging": {
+      "stag": {
         "database": "db-staging-aurora-postgres-1",
         "request_role": ""
       },
-      "usstaging": {
+      "ustag": {
         "database": "db-usstaging-aurora-postgres-1",
         "request_role": ""
       }
@@ -137,6 +137,10 @@
       },
       "uprod": {
         "database": "mongodb-YLProd-Cluster-1",
+        "request_role": "atlas-read-only"
+      },
+      "sb": {
+        "database": "mongodb-YLSandbox-Cluster-1",
         "request_role": "atlas-read-only"
       }
     }

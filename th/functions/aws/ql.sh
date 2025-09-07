@@ -1,18 +1,22 @@
 # Quick AWS login
 aws_quick_login() {
     local env_arg="$1"
+    local flags="$2"
     local open_browser=false
     local sudo_flag=""
+    local super_sudo=false
     
-    # Check args 2 onwards for 'b' flag and 's' flag
-    shift  # Remove first argument (environment)
-    for arg in "$@"; do
-        if [[ "$arg" == "b" ]]; then
-            open_browser=true
-        elif [[ "$arg" == "s" ]]; then
-            sudo_flag="s"
-        fi
-    done
+    # Parse combined flags
+    if [[ "$flags" == *"ss"* ]]; then
+        super_sudo=true
+        sudo_flag="ss"
+    elif [[ "$flags" == *"s"* ]]; then
+        sudo_flag="s"
+    fi
+    
+    if [[ "$flags" == *"b"* ]]; then
+        open_browser=true
+    fi
     
     local account_name
     account_name=$(load_config "aws" "$env_arg" "account")
@@ -22,11 +26,7 @@ aws_quick_login() {
         show_available_environments "aws" "AWS Login Error" "$env_arg"
         return 1
     fi
-
-    printf "\033c"
-    create_header "AWS Login"
     
-    local role_name
     local role_value
     role_value=$(load_config "aws" "$env_arg" "role")
     
@@ -34,7 +34,31 @@ aws_quick_login() {
         role_value="${env_arg}"
     fi
     
-    if [[ "$sudo_flag" == "s" ]]; then
+    if [[ "$sudo_flag" == "ss" ]]; then
+        # Super sudo requires TeamLead role
+        if ! tsh status | grep -q TeamLead; then
+            printf "\033[31m❌ Error: You don't have access to super_sudo roles.\033[0m\n"
+            return 1
+        fi
+    elif [[ "$sudo_flag" == "s" ]]; then
+        # Regular sudo check
+        local required_role="sudo_${role_value}_role"
+        if ! tsh status | grep -q "$required_role" ; then
+            aws_elevated_login "$account_name" "$role_value"
+            if [ "$reauth_aws" == "FALSE" ]; then
+                return 0
+            fi
+        fi
+    fi
+    
+    printf "\033c"
+    create_header "AWS Login"
+    
+    local role_name
+    if [[ "$sudo_flag" == "ss" ]]; then
+        role_name="super_sudo_${role_value}" > /dev/null 2>&1
+        printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
+    elif [[ "$sudo_flag" == "s" ]]; then
         role_name="sudo_${role_value}" > /dev/null 2>&1
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     else

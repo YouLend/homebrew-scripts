@@ -1,12 +1,5 @@
 kube_elevated_login() {
     local cluster="$1"
-    local env="$2"
-    
-    # Get request role from config
-    local request_role=""
-    if [[ -n "$env" ]]; then
-        request_role=$(load_request_role "kube" "$env")
-    fi
     
     while true; do
         printf "\033c" 
@@ -20,18 +13,9 @@ kube_elevated_login() {
         printf "\n\033[1mEnter your reason for request: \033[0m"
         read reason
 
-        if [[ -n "$request_role" ]]; then
-            request_output=$(tsh request create --roles "$request_role" --reason "$reason")
-        else
-            printf "\n\033[31m❌ No request role configured for this environment\033[0m\n"
-            sleep 2
-            return 1
-        fi
+        echo
+        tsh request create --roles "production-eks-clusters" --reason "$reason" --max-duration 4h
 
-        # 2. Extract request ID
-        REQUEST_ID=$(echo "$request_output" | grep "Request ID:" | awk '{print $3}')
-
-        printf "\n\n✅ \033[1;32mAccess request sent!\033[0m\n\n"
         reauth_kube="true"
         return 0
 

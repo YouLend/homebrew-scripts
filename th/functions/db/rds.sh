@@ -1,11 +1,11 @@
 rds_connect(){
     local rds="$1"
+    local port="$2"
     local db_user="tf_teleport_rds_read_user"
 
     list_postgres_databases() {
         local rds="$1"
-        local port=$(find_available_port)
-
+        local port="$2"
         {
             set +m
             tsh proxy db "$rds" --db-user=tf_teleport_rds_read_user --db-name=postgres --port=$port --tunnel &> /dev/null &
@@ -135,7 +135,7 @@ rds_connect(){
 
             check_psql
 
-            list_postgres_databases "$rds"
+            list_postgres_databases "$rds" "$port"
             
             check_admin
 
@@ -150,7 +150,7 @@ rds_connect(){
             
             check_admin
 
-            open_dbeaver "$rds" "$db_user"
+            open_dbeaver "$rds" "$db_user" "$port"
             ;;
         *)
             echo "Invalid selection. Exiting."
@@ -234,8 +234,6 @@ open_dbeaver() {
     local rds="$1"
     local db_user="$2"
     local port="$3"
-    printf "\033[1mConnecting to \033[1;32m$rds\033[0m as \033[1;32m$db_user\033[0m...\n\n"
-    sleep 1
     tsh proxy db "$rds" --db-name="postgres" --port=$port --tunnel --db-user="$db_user" &> /dev/null &
     printf "\033c" 
     create_header "DBeaver"

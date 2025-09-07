@@ -73,16 +73,9 @@ kube_login() {
         kube_elevated_login "$selected_cluster"
     fi
 
-    if [[ "$reauth_kube" == "true" ]]; then
-        printf "\n\033[1mRe-Authenticating\033[0m\n\n"
-        tsh logout
-        tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-        reauth_kube="false"
-        return 0   
-    fi
-
+    printf "\033c"
+    create_header "Kube Login"
     printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
     tsh kube login "$selected_cluster" > /dev/null 2>&1
-    #export NO_PROXY="oidc.eks.eu-west-1.amazonaws.com,${NO_PROXY:-}"
     printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
 }

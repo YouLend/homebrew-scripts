@@ -12,15 +12,11 @@ kube_quick_login() {
     # Check for privileged environments requiring elevated access
     case "$ql_arg" in
         "prod"|"uprod")
-            local request_role=$(load_request_role "kube" "$ql_arg")
-            if [[ -n "$request_role" ]] && ! tsh status | grep -q "$request_role"; then
-                kube_elevated_login "$cluster_name" "$ql_arg"
-                if [[ "$reauth_kube" == "true" ]]; then
-                    printf "\n\033[1mRe-Authenticating\033[0m\n\n"
-                    tsh logout
-                    tsh login --auth=ad --proxy=youlend.teleport.sh:443 --request-id="$REQUEST_ID" > /dev/null 2>&1
-                    reauth_kube="false"
-                    return 0
+            local request_role
+            request_role=$(load_request_role "kube" "$ql_arg")
+            if [[ -n "$request_role" ]]; then
+                if ! tsh status | grep -q "$request_role"; then
+                    kube_elevated_login "$cluster_name"
                 fi
             fi
             ;;
