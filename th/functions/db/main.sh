@@ -1,4 +1,7 @@
 db_login() {
+    # Enable bash-compatible array indexing for zsh
+    [[ -n "$ZSH_VERSION" ]] && setopt KSH_ARRAYS
+    
     th_login
 
     if [[ -n "$1" ]]; then
@@ -22,6 +25,7 @@ db_login() {
                 db_type="rds"
 
                 temp_db_file=$(mktemp)
+                temp_display_file=$(mktemp)
                 temp_status_file=$(mktemp)
 
                 printf "\033c" 
@@ -31,6 +35,7 @@ db_login() {
 
                 # Read results back into global arrays
                 db_lines=()
+                display_lines=()
                 login_status=()
 
                 while IFS= read -r line; do
@@ -38,21 +43,20 @@ db_login() {
                 done < "$temp_db_file"
                 
                 while IFS= read -r line; do
+                    display_lines+=("$line")
+                done < "$temp_display_file"
+                
+                while IFS= read -r line; do
                     login_status+=("$line")
                 done < "$temp_status_file"
                 
                 # Clean up temp files
-                rm -f "$temp_db_file" "$temp_status_file"
+                rm -f "$temp_db_file" "$temp_display_file" "$temp_status_file"
 
                 local i
                 i=0
-                for line in "${db_lines[@]}"; do
-                    # Handle bash (0-indexed) vs zsh (1-indexed) arrays
-                    local array_index=$i
-                    if [[ -n "$ZSH_VERSION" ]]; then
-                        array_index=$((i + 1))
-                    fi
-                    local db_status="${login_status[$array_index]:-n/a}"
+                for line in "${display_lines[@]}"; do
+                    local db_status="${login_status[$i]:-n/a}"
 
                     case "$db_status" in
                         ok)
@@ -77,19 +81,12 @@ db_login() {
                 fi
 
                 selected_index=$((db_choice - 1))
-                # Handle bash (0-indexed) vs zsh (1-indexed) arrays for selection
-                local db_array_index=$selected_index
-                local status_array_index=$selected_index
-                if [[ -n "$ZSH_VERSION" ]]; then
-                    db_array_index=$((selected_index + 1))
-                    status_array_index=$((selected_index + 1))
-                fi
                 
                 if [[ $db_choice -gt 0 && $db_choice -le ${#db_lines} ]]; then
-                    selected_db="${db_lines[$db_array_index]}"
+                    selected_db="${db_lines[$selected_index]}"
                     
                     # Check if the selected database has failed login status
-                    local selected_status="${login_status[$status_array_index]:-n/a}"
+                    local selected_status="${login_status[$selected_index]:-n/a}"
                     if [[ "$selected_status" == "fail" ]]; then
                         db_elevated_login "sudo_teleport_rds_read_role" $selected_db
                     fi
@@ -125,22 +122,36 @@ db_login() {
                 # Clean up temp files
                 rm -f "$temp_atlas_file" "$temp_json_file"
 
-                filtered_dbs=$(echo "$json_output" | tr -d '\000-\037' | jq -r '[.[] | select(.metadata.labels.db_type != "rds")]')
-                # Display databases with color coding based on access
-                local i=1
+                filtered_dbs=$(echo "$json_output" | tr -d '\000-\037' | jq -r '[.[] | select(.metadata.labels."teleport.dev/discovery-type" != "rds")]')
+                
+                # Create arrays for mongo databases
+                mongo_full_names=()
+                mongo_display_names=()
+                
                 while IFS= read -r db_name; do
                     if [[ -z "$db_name" ]]; then
                         continue
                     fi
                     
+                    # Extract display name: everything between dashes, strip YL prefix
+                    # mongodb-YLProd-Cluster-1 -> Prod
+                    display_name=$(echo "$db_name" | cut -d'-' -f2 | sed 's/^YL//')
+                    
+                    mongo_full_names+=("$db_name")
+                    mongo_display_names+=("$display_name")
+                done <<< "$(echo "$filtered_dbs" | tr -d '\000-\037' | jq -r '.[] | .metadata.name')"
+                
+                # Display databases with color coding based on access
+                local i=1
+                for display_name in "${mongo_display_names[@]}"; do
                     printf "%2s. " "$i"
                     if [[ "$has_atlas_access" == "true" ]]; then
-                        printf "%s\n" "$db_name"
+                        printf "%s\n" "$display_name"
                     else
-                        printf "\033[90m%s\033[0m\n" "$db_name"
+                        printf "\033[90m%s\033[0m\n" "$display_name"
                     fi
                     i=$((i + 1))
-                done <<< "$(echo "$filtered_dbs" | tr -d '\000-\037' | jq -r '.[] | .metadata.name')"
+                done
 
                 # Prompt for selection
                 printf "\n\033[1mSelect database (number):\033[0m "
@@ -152,10 +163,9 @@ db_login() {
                 fi
 
                 selected_index=$((db_choice - 1))
-                db_count=$(echo "$filtered_dbs" | tr -d '\000-\037' | jq 'length')
                 
-                if [[ $db_choice -gt 0 && $db_choice -le $db_count ]]; then
-                    selected_db=$(echo "$filtered_dbs" | tr -d '\000-\037' | jq -r ".[$selected_index].metadata.name")
+                if [[ $db_choice -gt 0 && $db_choice -le ${#mongo_full_names[@]} ]]; then
+                    selected_db="${mongo_full_names[$selected_index]}"
                     # If user doesn't have atlas access, trigger elevated login
                     if [[ "$has_atlas_access" != "true" ]]; then
                         db_elevated_login "atlas-read-only" "$selected_db"
@@ -180,7 +190,14 @@ db_login() {
         return 0
     fi
 
-    printf "\n\033[1;32m$selected_db\033[0m selected.\n"
+    # Get display name for selected database
+    local selected_display
+    if [[ "$db_type" == "rds" ]]; then
+        selected_display="${display_lines[$selected_index]}"
+    else
+        selected_display="${mongo_display_names[$selected_index]}"
+    fi
+    printf "\n\033[1;32m$selected_display\033[0m selected.\n"
     sleep 1
 
     if [[ -z "$port" ]]; then port=$(find_available_port); fi 

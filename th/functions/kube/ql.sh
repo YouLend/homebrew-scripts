@@ -12,14 +12,14 @@ kube_quick_login() {
     # Check for privileged environments requiring elevated access
     case "$ql_arg" in
         "prod"|"uprod")
-            local request_role
-            request_role=$(load_request_role "kube" "$ql_arg")
-            if [[ -n "$request_role" ]]; then
-                if ! tsh status | grep -q "$request_role"; then
+            if tsh kube login "$cluster_name" >/dev/null 2>&1; then
+                if ! kubectl auth can-i create pod > /dev/null 2>&1; then
                     kube_elevated_login "$cluster_name"
                 fi
+            else
+                printf "\n\033[31m❌ Cluster not found. Please contact your Teleport admin.\n"
+                return 0
             fi
-            ;;
     esac
 
     printf "\033c"
@@ -29,5 +29,5 @@ kube_quick_login() {
 
     tsh kube login "$cluster_name" > /dev/null 2>&1
     
-    printf "\n✅ Logged in successfully!\n\n"
+    printf "\n✅ Logged in successfully!\n"
 }

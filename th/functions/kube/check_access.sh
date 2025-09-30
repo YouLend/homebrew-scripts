@@ -1,35 +1,3 @@
-kube_elevated_login() {
-    local cluster="$1"
-    
-    while true; do
-        printf "\033c" 
-        create_header "Privilege Request"
-        printf "You don't have write access to \033[1;32m$cluster\033[0m."
-        printf "\n\n\033[1mWould you like to raise a request?\033[0m"
-        create_note "Entering (N/n) will log you in as a read-only user."
-        printf "(Yy/Nn): "
-        read elevated
-        if [[ "$elevated" =~ ^[Yy]$ ]]; then
-        printf "\n\033[1mEnter your reason for request: \033[0m"
-        read reason
-
-        echo
-        tsh request create --roles "production-eks-clusters" --reason "$reason" --max-duration 4h
-
-        reauth_kube="true"
-        return 0
-
-        elif [[ "$elevated" =~ ^[Nn]$ ]]; then
-        echo
-        echo "Request creation skipped."
-        return 0
-        else
-        printf "\n\033[31mInvalid input. Please enter y or n.\033[0m\n"
-        fi
-    done
-}
-
-# Log into *prod* clusters & check write privilege
 check_cluster_access() {
     local output clusters
     output=$(tsh kube ls -f json)
@@ -50,7 +18,23 @@ check_cluster_access() {
             continue
         fi
 
+        # Extract everything before -eks, then add color back
+        # aslive-staging-eks-blue-us-east-2-973302516471 -> aslive-staging-blue
+        prefix="${cluster_name%-eks-*}"
+        
+        # Strip region-account suffix (pattern: -region-number)
+        prefix=$(echo "$prefix" | sed 's/-[a-z][a-z]-[a-z]*-[0-9]-[0-9]*$//')
+        
+        if [[ "$cluster_name" == *"-eks-blue"* ]]; then
+            display_name="$prefix-blue"
+        elif [[ "$cluster_name" == *"-eks-green"* ]]; then
+            display_name="$prefix-green"
+        else
+            display_name="$prefix"
+        fi
+
         echo "$cluster_name" >> "$temp_cluster_file"
+        echo "$display_name" >> "$temp_cluster_display_file"
         
         # Find first prod cluster to test with
         if [[ -z "$test_cluster" && "$cluster_name" == *prod* ]]; then

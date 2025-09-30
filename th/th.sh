@@ -10,18 +10,16 @@ else
     SCRIPT_DIR="$(dirname "$0")"
 fi
 
-for f in "$SCRIPT_DIR/functions"/*/*.sh; do source "$f"; done
+# Source all .sh files in functions directory and subdirectories
+while IFS= read -r -d '' f; do
+    source "$f"
+done < <(find "$SCRIPT_DIR/functions" -name "*.sh" -print0)
 
 version=$(get_th_version)
 
-th(){ 
+th(){
   # Start background update check for interactive commands
-  local update_cache_file=""
-  case "$1" in
-    kube|k|aws|a|database|d|terra|t)
-      update_cache_file=$(check_th_updates_background)
-      ;;
-  esac
+  update_cache_file=$(check_updates)
 
   case "$1" in
     kube|k)
@@ -74,7 +72,15 @@ th(){
         fi
       fi
       ;;
-    logout|c)
+    config)
+      if [[ "$2" == "-h" ]]; then
+        print_config_help
+      else
+        shift 
+        th_config "$@"
+      fi
+      ;;
+    cleanup|c)
       if [[ "$2" == "-h" ]]; then
 	      echo "Logout from all proxies, accounts & clusters."
       else
@@ -85,7 +91,7 @@ th(){
       if [[ "$2" == "-h" ]]; then
 	      echo "Alias for \"tsh login --auth=ad --proxy=youlend.teleport.sh:443\""
       else
-	      tsh login --auth=ad --proxy=youlend.teleport.sh:443
+        th_login
       fi
       ;;
     version|v)
@@ -112,20 +118,8 @@ th(){
       shift 
       demo_wave_loader "$@"
       ;;
-    update|u)
-      brew upgrade youlend/tools/th
-      # Update version cache after manual upgrade
-      local version_cache="$HOME/.cache/th_version"
-      mkdir -p "$(dirname "$version_cache")"
-      brew list --versions th 2>/dev/null | awk '{print $2}' > "$version_cache"
-      ;;
-    notifications|n)
-      shift
-      changelog=$(get_changelog "1.6.0")
-      create_notification "1.5.9" "1.6.0" "$changelog"
-      ;;
     "")
-      print_help $version | less -R
+      print_help $version
       ;;
     *)
       printf "\n🤔 Mate what? Try running $(ccode "th")\n"

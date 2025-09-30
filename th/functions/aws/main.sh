@@ -17,8 +17,8 @@ aws_login() {
     create_header "Available accounts"
     filtered=$(echo "$json_output" | jq '.[] | select(.metadata.name != null)')  # Optional filtering
 
-    # Display enumerated names
-    echo "$filtered" | jq -r '.metadata.name' | nl -w2 -s'. '
+    # Display enumerated names with yl- prefix removed
+    echo "$filtered" | jq -r '.metadata.name' | sed 's/^yl-//' | nl -w2 -s'. '
 
     # Prompt for app selection
     echo
@@ -40,14 +40,13 @@ aws_login() {
         return 1
     fi
 
-    printf "\nSelected app: \033[1;32m$app\033[0m\n"
-    sleep 1
+    # Display app name without yl- prefix
+    local display_app="${app#yl-}"
+    printf "\nSelected app: \033[1;32m$display_app\033[0m\n"
 
     # Log out of the selected app to force fresh AWS role output.
     tsh apps logout > /dev/null 2>&1
 
-    # Run tsh apps login to capture the AWS roles listing.
-    # (This command will error out because --aws-role is required, but it prints the available AWS roles.)
     local login_output role_section 
     login_output=$(tsh apps login "$app" 2>&1)
 
@@ -74,7 +73,7 @@ aws_login() {
         role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
 
         role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
-    fi
+    fi 
    
     # Assume the first 2 lines of role_section are headers.
     local roles_list
@@ -82,7 +81,7 @@ aws_login() {
     
     printf "\033c"
     create_header "Available Roles"
-    echo "$roles_list" | nl -w2 -s'. '
+    echo "$roles_list" | sed 's/^yl-//' | nl -w2 -s'. '
 
     # Prompt for role selection.
     printf "\n\033[1mSelect role (number):\033[0m " 
@@ -101,7 +100,9 @@ aws_login() {
 
     role_name=$(echo "$chosen_role_line" | awk '{print $1}')
 
-    printf "\nLogging you into \033[1;32m$app\033[0m as \033[1;32m$role_name\033[0m"
+    # Display names without yl- prefix
+    local display_role="${role_name#yl-}"
+    printf "\nLogging you into \033[1;32m$display_app\033[0m as \033[1;32m$display_role\033[0m"
     tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
     printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
     create_proxy $app $role_name

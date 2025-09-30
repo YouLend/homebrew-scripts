@@ -24,8 +24,20 @@
       "cluster": "aslive-staging-eks-blue",
       "request_role": ""
     },
-    "ustag": {
+    "ustagb": {
       "cluster": "aslive-usstaging-eks-blue",
+      "request_role": ""
+    },
+    "ustagg": {
+      "cluster": "aslive-usstaging-eks-green",
+      "request_role": ""
+    },
+    "cpgw": {
+      "cluster": "platformcentral-corepg-eks-green",
+      "request_role": ""
+    },
+    "cpgc": {
+      "cluster": "platformwest-corepg-eks-blue",
       "request_role": ""
     }
   },
@@ -94,39 +106,51 @@
   "db":{
     "rds": {
       "cpg": {
-        "database": "platform-corepg-aurora-postgres-1",
+        "database": "platform-corepg-aurora-postgres",
+        "request_role": ""
+      },
+      "cpgw": {
+        "database": "platformwest-corepg-view-aurora-postgres",
         "request_role": ""
       },
       "dev": {
-        "database": "db-dev-aurora-postgres-1",
+        "database": "db-dev-aurora-postgres",
         "request_role": ""
       },
       "prod": {
-        "database": "live-prod-view-aurora-postgres-1",
+        "database": "live-prod-view-aurora-postgres",
         "request_role": "sudo_teleport_rds_read_role"
       },
       "uprod": {
-        "database": "live-usprod-view-aurora-postgres-1",
+        "database": "live-usprod-view-aurora-postgres",
         "request_role": "sudo_teleport_rds_read_role"
       },
       "prodb": {
-        "database": "live-prod-bi-aurora-postgres-2",
+        "database": "live-prod-bi-aurora-postgres",
         "request_role": "sudo_teleport_rds_read_role"
       },
       "uprodb": {
-        "database": "live-usprod-bi-aurora-postgres-2",
+        "database": "live-usprod-bi-aurora-postgres",
         "request_role": "sudo_teleport_rds_read_role"
       },
-      "sb": {
-        "database": "db-sandbox-aurora-postgres-1",
+      "asb": {
+        "database": "aslive-sandbox-aurora-postgres",
         "request_role": ""
       },
-      "stag": {
-        "database": "db-staging-aurora-postgres-1",
+      "dsb": {
+        "database": "db-sandbox-aurora-postgres",
+        "request_role": ""
+      },
+      "astag": {
+        "database": "aslive-staging-aurora-postgres",
+        "request_role": ""
+      },
+      "dstag": {
+        "database": "db-staging-aurora-postgres",
         "request_role": ""
       },
       "ustag": {
-        "database": "db-usstaging-aurora-postgres-1",
+        "database": "db-usstaging-aurora-postgres",
         "request_role": ""
       }
     },

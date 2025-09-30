@@ -36,14 +36,14 @@ aws_quick_login() {
     
     if [[ "$sudo_flag" == "ss" ]]; then
         # Super sudo requires TeamLead role
-        if ! tsh status | grep -q TeamLead; then
-            printf "\033[31m❌ Error: You don't have access to super_sudo roles.\033[0m\n"
+        if ! tsh apps login $account_name 2>&1 > /dev/null | grep -q super_sudo_$role_value ; then
+            printf "\n\033[31m❌ Error: You don't have access to super_sudo roles.\033[0m\n"
             return 1
         fi
     elif [[ "$sudo_flag" == "s" ]]; then
         # Regular sudo check
         local required_role="sudo_${role_value}_role"
-        if ! tsh status | grep -q "$required_role" ; then
+        if ! tsh apps login $account_name 2>&1 > /dev/null | grep -q sudo_$role_value ; then
             aws_elevated_login "$account_name" "$role_value"
             if [ "$reauth_aws" == "FALSE" ]; then
                 return 0

@@ -184,8 +184,6 @@ create_notification() {
             read -n 1
             ;;
         1) # No selected - mute notifications
-            local daily_cache_file="$HOME/.cache/th_update_check"
-            echo "MUTED" > "$daily_cache_file"
             local mute_message="⏳ Update notifications muted for 1 hour."
             local mute_len=${#mute_message}
             local mute_padding=$(( (box_width - mute_len - 4) / 2 ))
@@ -202,4 +200,6 @@ create_notification() {
     
     # Restore the original screen content after all update activity is complete
     printf "\033[?1049l"  # Switch back to main screen buffer
+
+    return $result
 }

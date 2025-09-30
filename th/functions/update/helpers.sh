@@ -1,95 +1,60 @@
-# Background update checker
-check_th_updates_background() {
-    local daily_cache_file="$HOME/.cache/th_update_check"
-    local session_cache_file="/tmp/.th_update_check_$$"
-    local tap_name="youlend/tools"
-    local package_name="th"
-    
-    # Create cache directory if it doesn't exist
-    mkdir -p "$(dirname "$daily_cache_file")"
-    
-    # Check if we already checked today
-    if [ -f "$daily_cache_file" ]; then
-        local cache_time=$(stat -c %Y "$daily_cache_file" 2>/dev/null || stat -f %m "$daily_cache_file" 2>/dev/null)
-        local current_time=$(date +%s)
-        local time_diff=$((current_time - cache_time))
-        
-        # If cache is less than 24 hours old, use cached result
-        if [ $time_diff -lt 3600]; then
-            local cached_result=$(cat "$daily_cache_file" 2>/dev/null)
-            # If muted, keep it muted until 24 hours pass
-            if [[ "$cached_result" == "MUTED" ]]; then
-                cp "$daily_cache_file" "$session_cache_file" 2>/dev/null
-                echo "$session_cache_file"
-                return
-            else
-                cp "$daily_cache_file" "$session_cache_file" 2>/dev/null
-                echo "$session_cache_file"
-                return
-            fi
-        fi
-    fi
-    
-    # Start background process like create_proxy does
-    {
-        set +m
-        if command -v brew >/dev/null 2>&1; then
-            # Use brew outdated to check for updates - it handles everything for us
-            local outdated_info=$(brew outdated $tap_name/$package_name 2>/dev/null)
-            
-            if [ -n "$outdated_info" ]; then
-                # Get current version from brew list
-                local current_version=$(brew list --versions $package_name 2>/dev/null | awk '{print $2}' | head -1)
-                # Get latest version from brew info - extract version number after package name
-                local latest_version=$(brew info $tap_name/$package_name 2>/dev/null | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
-                
-                if [ -n "$current_version" ] && [ -n "$latest_version" ]; then
-                    echo "UPDATE_AVAILABLE:$current_version:$latest_version" | tee "$daily_cache_file" > "$session_cache_file"
-                else
-                    echo "UP_TO_DATE" | tee "$daily_cache_file" > "$session_cache_file"
-                fi
-            else
-                # Either up to date or not installed via brew
-                local installed_version=$(brew list --versions $package_name 2>/dev/null | awk '{print $2}' | head -1)
-                if [ -n "$installed_version" ]; then
-                    echo "UP_TO_DATE" | tee "$daily_cache_file" > "$session_cache_file"
-                else
-                    echo "NOT_INSTALLED_VIA_BREW" | tee "$daily_cache_file" > "$session_cache_file"
-                fi
-            fi
-        else
-            echo "BREW_NOT_FOUND" | tee "$daily_cache_file" > "$session_cache_file"
-        fi
-        disown
-        set -m
-    } > /dev/null 2>&1 &
-    
-    echo "$session_cache_file"
-}
-
 # Check for update results and display notification
 show_update_notification() {
-    local update_cache_file="$1"
-    
-    # Don't wait - just check if file exists
-    if [ -f "$update_cache_file" ]; then
-        local result=$(cat "$update_cache_file")
-        rm -f "$update_cache_file" 2>/dev/null
-        
-        # Check if notifications are muted
-        if [[ "$result" == "MUTED" ]]; then
-            return 0  # Skip notification silently
-        elif [[ "$result" == UPDATE_AVAILABLE:* ]]; then
-            local current_version=$(echo "$result" | cut -d':' -f2)
-            local latest_version=$(echo "$result" | cut -d':' -f3)
+    local version_file="$1"
 
+    # Don't wait - just check if file exists
+    if [ -f "$version_file" ]; then
+        # Read version data using grep for specific keys
+        local update_muted th_update_available th_current_version th_latest_version
+        local tsh_update_available tsh_current_version tsh_latest_version
+
+        # Extract values from version file
+        update_muted=$(grep "^UPDATE_MUTED:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        th_update_available=$(grep "^TH_UPDATE_AVAILABLE:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        th_current_version=$(grep "^TH_CURRENT_VERSION:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        th_latest_version=$(grep "^TH_LATEST_VERSION:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        tsh_update_available=$(grep "^TSH_UPDATE_AVAILABLE:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        tsh_current_version=$(grep "^TSH_CURRENT_VERSION:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+        tsh_latest_version=$(grep "^TSH_LATEST_VERSION:" "$version_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ')
+
+        # Check if notifications are muted
+        if [[ "$update_muted" == "true" ]]; then
+            return 0  # Skip notification silently
+        fi
+
+        # Check for TH updates
+        if [[ "$th_update_available" == "true" ]] && [[ -n "$th_current_version" ]] && [[ -n "$th_latest_version" ]]; then
             # Get changelog from GitHub release
             local changelog=""
-            changelog=$(get_changelog "$latest_version")
+            changelog=$(get_changelog "$th_latest_version")
 
-            create_notification "$current_version" "$latest_version" "$changelog"
+            create_notification "$th_current_version" "$th_latest_version" "$changelog"
+            local notification_result=$?
 
-            return 0
+            # If user selected "No" (mute), update the version file
+            if [[ $notification_result -eq 1 ]]; then
+                local temp_file=$(mktemp)
+
+                # Copy existing version data except UPDATE_MUTED
+                if [[ -f "$version_file" ]]; then
+                    while IFS=': ' read -r key value || [[ -n "$key" ]]; do
+                        if [[ -n "$key" && -n "$value" && "$key" != "UPDATE_MUTED" ]]; then
+                            printf "%s: %s\n" "$key" "$value" >> "$temp_file"
+                        fi
+                    done < "$version_file"
+                fi
+
+                # Add mute flag
+                printf "UPDATE_MUTED: true\n" >> "$temp_file"
+                mv "$temp_file" "$version_file"
+            fi
+        fi
+
+        # Check for TSH updates
+        if [[ "$tsh_update_available" == "true" ]] && [[ -n "$tsh_current_version" ]] && [[ -n "$tsh_latest_version" ]]; then
+            printf "\n\033[1;33m⚠️  TSH Update Available\033[0m\n"
+            printf "Current: %s → Latest: %s\n" "$tsh_current_version" "$tsh_latest_version"
+            printf "Update available - consider updating your Teleport installation\n"
         fi
     fi
 }
@@ -113,3 +78,4 @@ get_changelog() {
         echo "curl or jq not available - changelog unavailable"
     fi
 }
+

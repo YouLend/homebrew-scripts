@@ -12,6 +12,7 @@ kube_login() {
 
     # Temp file for load function used below
     temp_cluster_file=$(mktemp)
+    temp_cluster_display_file=$(mktemp)
     temp_cluster_status_file=$(mktemp)
 
     printf "\033c"
@@ -20,6 +21,7 @@ kube_login() {
     
     # Read results back into arrays
     local cluster_lines=()
+    local cluster_display_lines=()
     local login_status=()
 
     while IFS= read -r line; do
@@ -27,15 +29,19 @@ kube_login() {
     done < "$temp_cluster_file"
     
     while IFS= read -r line; do
+        cluster_display_lines+=("$line")
+    done < "$temp_cluster_display_file"
+    
+    while IFS= read -r line; do
         login_status+=("$line")
     done < "$temp_cluster_status_file"
     
     # Clean up temp files
-    rm -f "$temp_cluster_file" "$temp_cluster_status_file"
+    rm -f "$temp_cluster_file" "$temp_cluster_display_file" "$temp_cluster_status_file"
 
     local i
     i=0
-    for line in "${cluster_lines[@]}"; do
+    for line in "${cluster_display_lines[@]}"; do
         local cluster_status="${login_status[$i]:-n/a}"
 
         case "$cluster_status" in
@@ -73,9 +79,12 @@ kube_login() {
         kube_elevated_login "$selected_cluster"
     fi
 
+    # Get display name for selected cluster
+    selected_cluster_display="${cluster_display_lines[$selected_index]}"
+    
     printf "\033c"
     create_header "Kube Login"
-    printf "\n\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster\033[0m\n"
+    printf "\033[1mLogging you into:\033[0m \033[1;32m$selected_cluster_display\033[0m\n"
     tsh kube login "$selected_cluster" > /dev/null 2>&1
     printf "\n✅ \033[1mLogged in successfully!\033[0m\n\n"
 }
