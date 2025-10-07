@@ -80,7 +80,7 @@ th(){
         th_config "$@"
       fi
       ;;
-    cleanup|c)
+    cleanup|c|logout)
       if [[ "$2" == "-h" ]]; then
 	      echo "Logout from all proxies, accounts & clusters."
       else
