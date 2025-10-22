@@ -44,63 +44,63 @@
   "aws": {
     "admin": {
       "account": "yl-admin",
-      "role": "admin"
+      "role": "admin-platform"
     },
     "cpg": {
       "account": "yl-coreplayground",
-      "role": "coreplayground"
+      "role": "corepg-platform"
     },
     "cpgb": {
       "account": "yl-corepgblue",
-      "role": "corepgblue"
+      "role": "corepgblue-platform"
     },
     "cpgg": {
       "account": "yl-corepggreen",
-      "role": "corepggreen"
+      "role": "corepggreen-platform"
     },
     "cpgh": {
       "account": "yl-corepghub",
-      "role": "corepghub"
+      "role": "corepghub-platform"
     },
     "dev": {
       "account": "yl-development",
-      "role": "dev"
+      "role": "dev-platform"
     },
     "ddev": {
       "account": "yl-datadev",
-      "role": "datadev"
+      "role": "datadev-platform"
     },
     "dprod": {
       "account": "yl-dataprod",
-      "role": "dataprod"
+      "role": "dataprod-platform"
     },
     "dpg": {
       "account": "yl-dataplayground",
-      "role": "dataplayground"
+      "role": "datapg-platform"
     },
     "dstag": {
       "account": "yl-datastaging",
-      "role": "datastaging"
+      "role": "datastaging-platform"
     },
     "prod": {
       "account": "yl-production",
-      "role": "prod"
+      "role": "prod-platform"
     },
     "uprod": {
       "account": "yl-usproduction",
-      "role": "usprod"
+      "role": "usprod-platform"
     },
     "sb": {
       "account": "yl-sandbox",
-      "role": "sandbox"
+      "role": "sandbox-platform"
     },
     "stag": {
       "account": "yl-staging",
-      "role": "staging"
+      "role": "staging-platform"
     },
     "ustag": {
       "account": "yl-usstaging",
-      "role": "usstaging"
+      "role": "usstaging-platform"
     }
   },
   "db":{

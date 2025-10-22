@@ -6,11 +6,7 @@ aws_quick_login() {
     local sudo_flag=""
     local super_sudo=false
     
-    # Parse combined flags
-    if [[ "$flags" == *"ss"* ]]; then
-        super_sudo=true
-        sudo_flag="ss"
-    elif [[ "$flags" == *"s"* ]]; then
+    if [[ "$flags" == *"s"* ]]; then
         sudo_flag="s"
     fi
     
@@ -28,38 +24,18 @@ aws_quick_login() {
     fi
     
     local role_value
-    role_value=$(load_config "aws" "$env_arg" "role")
-    
-    if [ -z "$role_value" ]; then
-        role_value="${env_arg}"
-    fi
-    
-    if [[ "$sudo_flag" == "ss" ]]; then
-        # Super sudo requires TeamLead role
-        if ! tsh apps login $account_name 2>&1 > /dev/null | grep -q super_sudo_$role_value ; then
-            printf "\n\033[31m❌ Error: You don't have access to super_sudo roles.\033[0m\n"
-            return 1
-        fi
-    elif [[ "$sudo_flag" == "s" ]]; then
-        # Regular sudo check
-        local required_role="sudo_${role_value}_role"
-        if ! tsh apps login $account_name 2>&1 > /dev/null | grep -q sudo_$role_value ; then
-            aws_elevated_login "$account_name" "$role_value"
-            if [ "$reauth_aws" == "FALSE" ]; then
-                return 0
-            fi
-        fi
+    if [[ $(tsh status | grep "Platform") ]]; then
+        role_value=$(load_config "aws" "$env_arg" "role")
+    else
+        role_value="teleport-dev"
     fi
     
     printf "\033c"
     create_header "AWS Login"
     
     local role_name
-    if [[ "$sudo_flag" == "ss" ]]; then
-        role_name="super_sudo_${role_value}" > /dev/null 2>&1
-        printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
-    elif [[ "$sudo_flag" == "s" ]]; then
-        role_name="sudo_${role_value}" > /dev/null 2>&1
+    if [[ "$sudo_flag" == "s" ]]; then
+        role_name="sudo-${role_value}" > /dev/null 2>&1
         printf "Logging you into: \033[1;32m$account_name\033[0m as \033[1;32m$role_name\033[0m\n"
     else
         role_name="${role_value}" > /dev/null 2>&1
