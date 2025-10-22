@@ -2,19 +2,23 @@
 # =============== Source Files ================
 # =============================================
 
-if [[ -n "$BASH_SOURCE" ]]; then
-    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-elif [[ -n "$ZSH_VERSION" ]]; then
-    SCRIPT_DIR="$(dirname "${(%):-%x}")"
+# --- Locate script directory (bash + zsh, follow symlinks) ---
+if [ -n "${BASH_SOURCE:-}" ]; then
+  SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  SCRIPT_DIR="$(cd -P "$(dirname "${(%):-%x}")" && pwd)"
 else
-    SCRIPT_DIR="$(dirname "$0")"
+  SCRIPT_DIR="$(cd -P "$(dirname "$0")" && pwd)"
 fi
 
-# Source all .sh files in functions directory and subdirectories
-while IFS= read -r -d '' f; do
-    source "$f"
-done < <(find "$SCRIPT_DIR/functions" -name "*.sh" -print0)
+# --- Source all function files (follows symlinks, NUL-safe) ---
+if [ -d "$SCRIPT_DIR/functions" ]; then
+  while IFS= read -r -d $'\0' f; do
+    . "$f"
+  done < <(find -L "$SCRIPT_DIR/functions" -type f -name '*.sh' -print0)
+fi
 
+# --- Now it's safe to call functions ---
 version=$(get_th_version)
 
 th(){
