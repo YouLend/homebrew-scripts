@@ -42,65 +42,107 @@
     }
   },
   "aws": {
+    "aprod": {
+      "account": "yl-auproduction",
+      "role": "auprod-platform",
+      "sudo_dev": true,
+      "sudo_platform": true
+    },
     "admin": {
       "account": "yl-admin",
-      "role": "admin-platform"
+      "role": "admin-platform",
+      "sudo_dev": false,
+      "sudo_platform": true
     },
     "cpg": {
       "account": "yl-coreplayground",
-      "role": "corepg-platform"
+      "role": "corepg-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "cpgb": {
       "account": "yl-corepgblue",
-      "role": "corepgblue-platform"
+      "role": "corepgblue-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "cpgg": {
       "account": "yl-corepggreen",
-      "role": "corepggreen-platform"
+      "role": "corepggreen-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "cpgh": {
       "account": "yl-corepghub",
-      "role": "corepghub-platform"
+      "role": "corepghub-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "dev": {
       "account": "yl-development",
-      "role": "dev-platform"
+      "role": "dev-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "ddev": {
       "account": "yl-datadev",
-      "role": "datadev-platform"
+      "role": "datadev-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "dprod": {
       "account": "yl-dataprod",
-      "role": "dataprod-platform"
+      "role": "dataprod-platform",
+      "sudo_dev": false,
+      "sudo_platform": true
     },
     "dpg": {
       "account": "yl-dataplayground",
-      "role": "datapg-platform"
+      "role": "datapg-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "dstag": {
       "account": "yl-datastaging",
-      "role": "datastaging-platform"
+      "role": "datastaging-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "prod": {
       "account": "yl-production",
-      "role": "prod-platform"
+      "role": "prod-platform",
+      "sudo_dev": true,
+      "sudo_platform": true
     },
     "uprod": {
       "account": "yl-usproduction",
-      "role": "usprod-platform"
+      "role": "usprod-platform",
+      "sudo_dev": true,
+      "sudo_platform": true
     },
     "sb": {
       "account": "yl-sandbox",
-      "role": "sandbox-platform"
+      "role": "sandbox-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "stag": {
       "account": "yl-staging",
-      "role": "staging-platform"
+      "role": "staging-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
     },
     "ustag": {
       "account": "yl-usstaging",
-      "role": "usstaging-platform"
+      "role": "usstaging-platform",
+      "sudo_dev": false,
+      "sudo_platform": false
+    },
+    "mgmt": {
+      "account": "yl-management",
+      "role": "management",
+      "sudo_dev": false,
+      "sudo_platform": true
     }
   },
   "db":{

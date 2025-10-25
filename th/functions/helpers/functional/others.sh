@@ -36,3 +36,17 @@ load() {
         set -m
     }   2>/dev/null
 }
+
+# Ternary function for conditional value selection
+ternary() {
+    local var="$1"
+    local compare="$2"
+    local true_val="$3"
+    local false_val="$4"
+
+    if [[ "$var" == "$compare" ]]; then
+        echo "$true_val"
+    else
+        echo "$false_val"
+    fi
+}
