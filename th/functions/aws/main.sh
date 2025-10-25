@@ -1,8 +1,6 @@
 aws_login() {
     th_login
 
-    tsh apps logout > /dev/null 2>&1
-
     if [[ -n "$1" ]]; then
         aws_quick_login "$@"
         return 0
@@ -17,93 +15,103 @@ aws_login() {
     create_header "Available accounts"
     filtered=$(echo "$json_output" | jq '.[] | select(.metadata.name != null)')  # Optional filtering
 
-    # Display enumerated names with yl- prefix removed
-    echo "$filtered" | jq -r '.metadata.name' | sed 's/^yl-//' | nl -w2 -s'. '
+    # Determine dev_type early for sudo checking
+    local dev_type
+    if [[ $(tsh status | grep "Platform") ]]; then
+        dev_type="platform"
+    else
+        dev_type="dev"
+    fi
+
+    # Display enumerated names with yl- prefix removed and sudo indicators
+    local account_names=($(echo "$filtered" | jq -r '.metadata.name'))
+    local max_length=0
+
+    # Find the longest account name (after removing yl- prefix)
+    for account_name in "${account_names[@]}"; do
+        local display_name="${account_name#yl-}"
+        if [[ ${#display_name} -gt $max_length ]]; then
+            max_length=${#display_name}
+        fi
+    done
+
+    # Display accounts with right-aligned sudo indicators
+    local counter=1
+    for account_name in "${account_names[@]}"; do
+        local display_name="${account_name#yl-}"
+        local sudo_indicator=""
+
+        # Check if sudo is available for this account
+        if check_sudo "$account_name" "$dev_type" >/dev/null 2>&1; then
+            sudo_indicator="$(printf '\033[32m[S]\033[0m')"  # Green [S] for sudo available
+        fi
+
+        # Right-align the sudo indicator
+        printf "%2d. %-${max_length}s %s\n" "$counter" "$display_name" "$sudo_indicator"
+        ((counter++))
+    done
 
     # Prompt for app selection
-    echo
-    printf "\033[1mSelect account (number):\033[0m "
-    read app_choice
+    printf "\033[A"
+    create_note "Note: \033[32m[S]\033[0m indicates sudo role available. Append 's' "
+    printf "\033[1A"
+    printf "           to account number to request access; i.e. 5s\n\n"
+    printf "Select account (number): \n"
+    create_input 1 2 15 "Invalid input. " "numerical"
+    app_choice="$user_input"
 
-    # Validate input: loop until valid number is entered
-    while ! [[ "$app_choice" =~ ^[0-9]+$ ]]; do
-        printf "\n\033[31mInvalid selection\033[0m\n"
-        printf "\033[1mSelect account (number):\033[0m "
-        read app_choice
-    done
+    # Check for sudo flag and extract numeric part
+    local use_sudo=false
+    if [[ "$app_choice" =~ s$ ]]; then
+        use_sudo=true
+        app_choice="${app_choice%s}"  # Strip the 's'
+    fi
 
     # Extract selected app name
-    app=$(echo "$filtered" | jq -r ".metadata.name" | sed -n "${app_choice}p")
-
-    if [ -z "$app" ]; then
-        echo -e "\033[31mNo app found at selection $app_choice. Exiting.\033[0m"
-        return 1
-    fi
-
-    # Display app name without yl- prefix
+    account=$(echo "$filtered" | jq -r ".metadata.name" | sed -n "${app_choice}p")
     local display_app="${app#yl-}"
-    printf "\nSelected app: \033[1;32m$display_app\033[0m\n"
 
-    # Log out of the selected app to force fresh AWS role output.
-    tsh apps logout > /dev/null 2>&1
+    local aws_role # The role passed to tsh apps login & proxy (required due to differences in product dev & managemet roles)
+    local teleport_role # The base role fetched from config
 
-    local login_output role_section 
-    login_output=$(tsh apps login "$app" 2>&1)
+    teleport_role=$(load_config_by_account "aws" "$account" "role")
 
-    # Extract the AWS roles section.
-    # The section is expected to start after "Available AWS roles:" and end before the error message.
-    role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
+    aws_role=$(ternary $dev_type "platform" $teleport_role "teleport-dev")
 
-    # Remove lines that contain "ERROR:" or that are empty.
-    role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
-
-    local default_role="$(echo "$login_output" | grep -o 'arn:aws:iam::[^ ]*' | awk -F/ '{print $NF}')"
-
-    if [ -z "$role_section" ]; then
-        aws_elevated_login "$app" "$default_role"
-        if [ "$reauth_aws" == "FALSE" ]; then
-            return 0
+    if [ "$use_sudo" = true ]; then
+        if check_sudo "$account" "$dev_type"; then
+            case "$aws_role" in
+                "management")
+                    sudo_role="sudo_management_role"
+                    aws_role="sudo_management"
+                ;;
+                "teleport-dev")
+                    sudo_role="sudo-${teleport_role%-platform}-dev"
+                    aws_role="sudo-teleport-dev"
+                ;;
+                *)
+                    sudo_role="sudo-$teleport_role"
+                    aws_role="$sudo_role"
+                ;;
+            esac
+            aws_elevated_login "$account" "$sudo_role"
+            # Exit if aws_elevated_login was cancelled (Ctrl+C)
+            if [ $? -eq 130 ]; then
+                return 130
+            fi
+        else
+            printf "\033c"
+            create_header "AWS Login"
+            printf "\033[33m⚠️  No sudo role available for this account.\033[0m\n"
+            sleep 2
         fi
     fi
 
-    if [[ "$reauth_aws" == "TRUE" ]]; then
-        # Refresh login output
-        login_output=$(tsh apps login "$app" 2>&1)
-
-        role_section=$(echo "$login_output" | awk '/Available AWS roles:/{flag=1; next} /ERROR: --aws-role flag is required/{flag=0} flag')
-
-        role_section=$(echo "$role_section" | grep -v "ERROR:" | sed '/^\s*$/d')
-    fi 
-   
-    # Assume the first 2 lines of role_section are headers.
-    local roles_list
-    roles_list=$(echo "$role_section" | tail -n +3 | awk '{print $1}' | sed '/^\s*$/d')
-    
     printf "\033c"
-    create_header "Available Roles"
-    echo "$roles_list" | sed 's/^yl-//' | nl -w2 -s'. '
+    create_header "$account"
 
-    # Prompt for role selection.
-    printf "\n\033[1mSelect role (number):\033[0m " 
-    read role_choice
-
-    local chosen_role_line role_name
-    chosen_role_line=""
-    while [ -z "$chosen_role_line" ]; do
-        chosen_role_line=$(echo "$roles_list" | sed -n "${role_choice}p")
-        if [ -z "$chosen_role_line" ]; then
-        printf "\n\033[31mInvalid selection\033[0m\n"
-        printf "\n\033[1mSelect role (number):\033[0m "
-        read role_choice
-        fi
-    done
-
-    role_name=$(echo "$chosen_role_line" | awk '{print $1}')
-
-    # Display names without yl- prefix
-    local display_role="${role_name#yl-}"
-    printf "\nLogging you into \033[1;32m$display_app\033[0m as \033[1;32m$display_role\033[0m"
-    tsh apps login "$app" --aws-role "$role_name" > /dev/null 2>&1
+    printf "Logging you into \033[1;32m$account\033[0m as \033[1;32m$aws_role\033[0m"
+    tsh apps login "$account" --aws-role "$aws_role" > /dev/null 2>&1
     printf "\n\n✅\033[1;32m Logged in successfully!\033[0m\n" 
-    create_proxy $app $role_name
+    create_proxy $account $aws_role
 }
