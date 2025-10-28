@@ -17,8 +17,14 @@ db_login() {
     local db_type
     local selected_db
     while true; do
-        printf "\nSelect option (number): "
-        read db_choice
+        printf "\nSelect database type (number): \n"
+        create_input 1 1 50 "Invalid input. " "numerical"
+        local input_exit_code=$?
+        db_choice="$user_input"
+
+        if [ $input_exit_code -eq 130 ]; then
+            return 130
+        fi
         case "$db_choice" in
             1)
                 printf "\n\033[1mRDS\033[0m selected.\n"
@@ -27,6 +33,7 @@ db_login() {
                 temp_db_file=$(mktemp)
                 temp_display_file=$(mktemp)
                 temp_status_file=$(mktemp)
+                temp_elevated_access_file=$(mktemp)
 
                 printf "\033c" 
                 create_header "Available Databases"
@@ -50,34 +57,68 @@ db_login() {
                     login_status+=("$line")
                 done < "$temp_status_file"
                 
+                # Read elevated access status
+                local has_elevated_access="false"
+                if [[ -f "$temp_elevated_access_file" ]]; then
+                    has_elevated_access=$(cat "$temp_elevated_access_file")
+                fi
+
                 # Clean up temp files
-                rm -f "$temp_db_file" "$temp_display_file" "$temp_status_file"
+                rm -f "$temp_db_file" "$temp_display_file" "$temp_status_file" "$temp_elevated_access_file"
+
+                # Find the longest database display name for alignment
+                local max_length=0
+                for line in "${display_lines[@]}"; do
+                    if [[ ${#line} -gt $max_length ]]; then
+                        max_length=${#line}
+                    fi
+                done
 
                 local i
                 i=0
                 for line in "${display_lines[@]}"; do
                     local db_status="${login_status[$i]:-n/a}"
+                    local db_name="${db_lines[$i]}"
+                    local sudo_indicator=""
+
+                    # Check if database has request role available (only show if user doesn't have elevated access)
+                    if [[ "$has_elevated_access" == "false" ]]; then
+                        local request_role=$(load_config_by_account "db" "$db_name" "request_role" "rds")
+                        if [[ -n "$request_role" && "$request_role" != "" ]]; then
+                            sudo_indicator="$(printf '\033[32m[S]\033[0m')"
+                        fi
+                    fi
 
                     case "$db_status" in
                         ok)
-                            printf "%2s. %s\n" "$(($i + 1))" "$line"
+                            printf "%2s. %-${max_length}s %s\n" "$(($i + 1))" "$line" "$sudo_indicator"
                             ;;
                         fail)
-                            printf "\033[90m%2s. %s\033[0m\n" "$(($i + 1))" "$line"
+                            printf "\033[90m%2s. %-${max_length}s %s\033[0m\n" "$(($i + 1))" "$line" "$sudo_indicator"
                             ;;
                         n/a)
-                            printf "%2s. %s\n" "$(($i + 1))" "$line"
+                            printf "%2s. %-${max_length}s %s\n" "$(($i + 1))" "$line" "$sudo_indicator"
                             ;;
                     esac
                     i=$((i + 1))
                 done
 
+                # Only show the note if user doesn't have elevated access (and thus might see [S] indicators)
+                if [[ "$has_elevated_access" == "false" ]]; then
+                    printf "\033[1A"
+                    create_note "Note: \033[32m[S]\033[0m indicates database requires elevated access."
+                    printf "\033[1A"
+                    printf "           Selecting one will start an access request.\n"
+                fi
+
                 echo
-                printf "\033[1mSelect database (number):\033[0m "
-                read db_choice
-                if [ -z "$db_choice" ]; then
-                    echo "No selection made. Exiting."
-                    return 1
+                printf "\033[1mSelect database (number):\033[0m\n"
+                create_input 1 2 50 "Invalid input. " "numerical"
+                local input_exit_code=$?
+                db_choice="$user_input"
+
+                if [ $input_exit_code -eq 130 ]; then
+                    return 130
                 fi
 
                 selected_index=$((db_choice - 1))
@@ -89,6 +130,11 @@ db_login() {
                     local selected_status="${login_status[$selected_index]:-n/a}"
                     if [[ "$selected_status" == "fail" ]]; then
                         db_elevated_login "sudo_teleport_rds_read_role" $selected_db
+                        
+                        local input_exit_code=$?
+                        if [ $input_exit_code -eq 130 ]; then
+                            return 130
+                        fi
                     fi
                 else
                     printf "\n\033[31mInvalid selection here\033[0m\n"
@@ -107,10 +153,17 @@ db_login() {
                 
                 temp_atlas_file=$(mktemp)
                 temp_json_file=$(mktemp)
+                temp_elevated_access_file=$(mktemp)
                 
                 check_atlas_access() {
                     tsh status | grep -q "atlas-read-only" && echo "true" > "$temp_atlas_file" || echo "false" > "$temp_atlas_file"
                     tsh db ls --format=json > "$temp_json_file"
+                    # Check elevated access status and write to temp file
+                    if tsh status | grep -E "(Lead|Admin)" >/dev/null 2>&1; then
+                        echo "true" >> "$temp_elevated_access_file"
+                    else
+                        echo "false" >> "$temp_elevated_access_file"
+                    fi
                 }
 
                 load check_atlas_access "Checking MongoDB access..."
@@ -118,9 +171,13 @@ db_login() {
                 # Read results back from temp files
                 has_atlas_access=$(cat "$temp_atlas_file")
                 json_output=$(cat "$temp_json_file")
-                
+                local has_elevated_access="false"
+                if [[ -f "$temp_elevated_access_file" ]]; then
+                    has_elevated_access=$(cat "$temp_elevated_access_file")
+                fi
+
                 # Clean up temp files
-                rm -f "$temp_atlas_file" "$temp_json_file"
+                rm -f "$temp_atlas_file" "$temp_json_file" "$temp_elevated_access_file"
 
                 filtered_dbs=$(echo "$json_output" | tr -d '\000-\037' | jq -r '[.[] | select(.metadata.labels."teleport.dev/discovery-type" != "rds")]')
                 
@@ -141,25 +198,53 @@ db_login() {
                     mongo_display_names+=("$display_name")
                 done <<< "$(echo "$filtered_dbs" | tr -d '\000-\037' | jq -r '.[] | .metadata.name')"
                 
-                # Display databases with color coding based on access
+                # Find the longest mongo display name for alignment
+                local max_length=0
+                for display_name in "${mongo_display_names[@]}"; do
+                    if [[ ${#display_name} -gt $max_length ]]; then
+                        max_length=${#display_name}
+                    fi
+                done
+
+                # Display databases with color coding based on access and sudo indicators
                 local i=1
                 for display_name in "${mongo_display_names[@]}"; do
+                    local full_name="${mongo_full_names[$((i-1))]}"
+                    local sudo_indicator=""
+
+                    # Check if database has request role available (only show if user doesn't have elevated access)
+                    if [[ "$has_elevated_access" == "false" ]]; then
+                        local request_role=$(load_config_by_account "db" "$full_name" "request_role" "mongo")
+                        if [[ -n "$request_role" && "$request_role" != "" ]]; then
+                            sudo_indicator="$(printf '\033[32m[S]\033[0m')"
+                        fi
+                    fi
+
                     printf "%2s. " "$i"
                     if [[ "$has_atlas_access" == "true" ]]; then
-                        printf "%s\n" "$display_name"
+                        printf "%-${max_length}s %s\n" "$display_name" "$sudo_indicator"
                     else
-                        printf "\033[90m%s\033[0m\n" "$display_name"
+                        printf "\033[90m%-${max_length}s %s\033[0m\n" "$display_name" "$sudo_indicator"
                     fi
                     i=$((i + 1))
                 done
 
-                # Prompt for selection
-                printf "\n\033[1mSelect database (number):\033[0m "
-                read db_choice
+                # Only show the note if user doesn't have elevated access (and thus might see [S] indicators)
+                if [[ "$has_elevated_access" == "false" ]]; then
+                    printf "\033[1A"
+                    create_note "Note: \033[32m[S]\033[0m indicates database requires elevated access."
+                    printf "\033[1A"
+                    printf "           Selecting one will start an access request.\n"
+                fi
 
-                if [ -z "$db_choice" ]; then
-                    echo "No selection made. Exiting."
-                    return 1
+                # Prompt for selection
+                printf "\n\033[1mSelect database (number):\033[0m\n"
+                create_input 1 2 50 "Invalid input. " "numerical"
+                local input_exit_code=$?
+                db_choice="$user_input"
+
+                if [ $input_exit_code -eq 130 ]; then
+                    return 130
                 fi
 
                 selected_index=$((db_choice - 1))
@@ -169,8 +254,9 @@ db_login() {
                     # If user doesn't have atlas access, trigger elevated login
                     if [[ "$has_atlas_access" != "true" ]]; then
                         db_elevated_login "atlas-read-only" "$selected_db"
-                        if [[ $? -ne 0 ]]; then
-                            return 0
+                        local input_exit_code=$?
+                        if [ $input_exit_code -eq 130 ]; then
+                            return 130
                         fi
                     fi
                 else
@@ -178,9 +264,6 @@ db_login() {
                     return 1
                 fi
                 break
-                ;;
-            *)
-                printf "\n\033[31mInvalid selection here\033[0m\n"
                 ;;
         esac
     done
@@ -197,8 +280,6 @@ db_login() {
     else
         selected_display="${mongo_display_names[$selected_index]}"
     fi
-    printf "\n\033[1;32m$selected_display\033[0m selected.\n"
-    sleep 1
 
     if [[ -z "$port" ]]; then port=$(find_available_port); fi 
 

@@ -9,12 +9,13 @@ rds_connect(){
     printf "How would you like to connect?\n\n"
     printf "1. Via \033[1mPSQL\033[0m\n"
     printf "2. Via \033[1mDBeaver\033[0m\n"
-    printf "\nSelect option (number): "
-    read option
+    printf "\nSelect option (number):\n"
+    create_input 1 1 15 "Invalid input. " "numerical"
+    local input_exit_code=$?
+    option="$user_input"
 
-    if [ -z "$option" ]; then
-        echo "No selection made. Exiting."
-        return 1
+    if [ $input_exit_code -eq 130 ]; then
+        return 130
     fi
 
     case "$option" in
@@ -24,6 +25,12 @@ rds_connect(){
             check_psql
 
             list_postgres_databases "$cluster" "$port"
+
+            local input_exit_code=$?
+
+            if [ $input_exit_code -eq 130 ]; then
+                return 130
+            fi
 
             if [ -z "$database" ]; then 
                 connect_db "postgres"
