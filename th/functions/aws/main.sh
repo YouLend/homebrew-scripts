@@ -41,8 +41,10 @@ aws_login() {
         local display_name="${account_name#yl-}"
         local sudo_indicator=""
 
-        # Check if sudo is available for this account
-        if check_sudo "$account_name" "$dev_type" >/dev/null 2>&1; then
+        # Check if sudo is available for this account by checking config
+        local sudo_field="sudo_${dev_type}"
+        local has_sudo=$(load_config_by_account "aws" "$account_name" "$sudo_field")
+        if [[ "$has_sudo" == "true" ]]; then
             sudo_indicator="$(printf '\033[32m[S]\033[0m')"  # Green [S] for sudo available
         fi
 
@@ -84,7 +86,9 @@ aws_login() {
     aws_role=$(ternary $dev_type "platform" $teleport_role "teleport-dev")
 
     if [ "$use_sudo" = true ]; then
-        if check_sudo "$account" "$dev_type"; then
+        local sudo_field="sudo_${dev_type}"
+        local has_sudo=$(load_config_by_account "aws" "$account" "$sudo_field")
+        if [[ "$has_sudo" == "true" ]]; then
             case "$aws_role" in
                 "management")
                     sudo_role="sudo_management_role"

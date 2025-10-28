@@ -37,7 +37,9 @@ aws_quick_login() {
 
     # Check if user requested sudo (from 's' flag)
     if [ "$use_sudo" = true ]; then
-        if check_sudo "$account" "$dev_type"; then
+        local sudo_field="sudo_${dev_type}"
+        local has_sudo=$(load_config_by_account "aws" "$account" "$sudo_field")
+        if [[ "$has_sudo" == "true" ]]; then
             case "$aws_role" in
                 "management")
                     sudo_role="sudo_management_role"
