@@ -73,4 +73,11 @@ check_rds_login() {
             echo "n/a" >> "$temp_status_file"
         fi
     done <<< "$dbs"
+
+    # Check elevated access status and write to temp file
+    if tsh status | grep -E "(Lead|Admin)" >/dev/null 2>&1; then
+        echo "true" >> "$temp_elevated_access_file"
+    else
+        echo "false" >> "$temp_elevated_access_file"
+    fi
 }

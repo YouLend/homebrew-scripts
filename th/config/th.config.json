@@ -177,11 +177,11 @@
       },
       "asb": {
         "database": "aslive-sandbox-aurora-postgres",
-        "request_role": ""
+        "request_role": "sudo_teleport_rds_read_role"
       },
       "dsb": {
         "database": "db-sandbox-aurora-postgres",
-        "request_role": ""
+        "request_role": "sudo_teleport_rds_read_role"
       },
       "astag": {
         "database": "aslive-staging-aurora-postgres",
@@ -202,7 +202,7 @@
         "request_role": "atlas-read-only"
       },
       "uprod": {
-        "database": "mongodb-YLProd-Cluster-1",
+        "database": "mongodb-YLUSProd-Cluster-1",
         "request_role": "atlas-read-only"
       },
       "sb": {

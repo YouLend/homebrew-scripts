@@ -48,30 +48,31 @@ db_quick_login() {
             break
         fi
     done
-    
-    # Check for privileged environments requiring elevated access
+
     if [[ "$cluster_type" == "rds" ]]; then
         case "$env_name" in
-            "pv"|"pb"|"upb"|"upv"|"prod"|"usprod")
+            "prod"|"uprod"|"asb"|"dsb")
                 local request_role
                 request_role=$(load_request_role "db" "$env_name" "rds")
                 if ! tsh status | grep -q "$request_role"; then
                     db_elevated_login "$request_role" "$cluster_name"
-                    if [[ $? -ne 0 ]]; then
-                        return 0
+                    local input_exit_code=$?
+                    if [ $input_exit_code -eq 130 ]; then
+                        return 130
                     fi
                 fi
                 ;;
         esac
     elif [[ "$cluster_type" == "mongo" ]]; then
         case "$env_name" in
-            "prod"|"uprod"|"sand")
+            "prod"|"uprod"|"sb")
                 local request_role
                 request_role=$(load_request_role "db" "$env_name" "mongo")
                 if ! tsh status | grep -q "$request_role"; then
                     db_elevated_login "$request_role" "$cluster_name"
-                    if [[ $? -ne 0 ]]; then
-                        return 0
+                    local input_exit_code=$?
+                    if [ $input_exit_code -eq 130 ]; then
+                        return 130
                     fi
                 fi
                 ;;
@@ -83,6 +84,11 @@ db_quick_login() {
     if [[ $open_console == "true" ]]; then
         if [[ "$cluster_type" == "rds" ]]; then
             list_postgres_databases "$cluster_name" "$port"
+            
+            local input_exit_code=$?
+            if [ $input_exit_code -eq 130 ]; then
+                return 130
+            fi
             connect_psql "$cluster_name" "$database" "tf_teleport_rds_read_user"
             open_console="false"
         elif [[ "$cluster_type" == "mongo" ]]; then

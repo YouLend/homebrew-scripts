@@ -152,7 +152,8 @@ create_input() {
             fi
 
             # Handle printable characters with strict length limit and type validation
-            if [[ ${#input} -lt $max_chars ]] && [[ "$char" =~ [[:print:]] ]]; then
+            # Add error handling for invalid byte sequences
+            if [[ ${#input} -lt $max_chars ]] && { [[ "$char" =~ [[:print:]] ]] 2>/dev/null || false; }; then
                 # Validate input based on type
                 if [[ "$input_type" == "numerical" ]]; then
                     # For numerical: only allow digits and 's', but 's' cannot be first character
@@ -192,6 +193,7 @@ create_input() {
             printf "\033[0G"  # Move to column 0
             printf "\033[0J"  # Clear from cursor to end of screen
             printf "\033[31m%s (%d/%d chars).\033[0m\n" "$error_message" "${#input}" "$min_chars"
+            input=""
 
             # Redraw the input box
             echo " ║  ╭${top_bottom_line}╮"

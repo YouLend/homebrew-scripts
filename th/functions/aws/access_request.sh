@@ -7,7 +7,6 @@ aws_elevated_login(){
 
     printf "\n\nPlease enter a reason for your request (minimum 15 characters):\n"
 
-    # Use the reusable input function
     create_input 15 51 51 "Reason too short. Please provide more detail"
     local input_exit_code=$?
     reason="$user_input"

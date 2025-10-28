@@ -45,13 +45,14 @@ list_postgres_databases() {
 
     echo "$db_list" | nl -w2 -s'. '
 
-    printf "\n\033[1mSelect database (number):\033[0m "
-    read db_choice
+    printf "\n\033[1mSelect database (number):\033[0m\n"
+    create_input 1 2 50 "Invalid input. " "numerical"
+    local input_exit_code=$?
+    db_choice="$user_input"
 
-    if [ -z "$db_choice" ]; then
-        echo "No selection made. Exiting."
+    if [ $input_exit_code -eq 130 ]; then
         kill $tunnel_pid 2>/dev/null
-        return 1
+        return 130
     fi
 
     database=$(echo "$db_list" | sed -n "${db_choice}p")

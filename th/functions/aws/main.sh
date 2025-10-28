@@ -57,8 +57,13 @@ aws_login() {
     printf "\033[1A"
     printf "           to account number to request access; i.e. 5s\n\n"
     printf "Select account (number): \n"
-    create_input 1 2 15 "Invalid input. " "numerical"
+    create_input 1 2 50 "Invalid input. " "numerical"
+    local input_exit_code=$?
     app_choice="$user_input"
+
+    if [ $input_exit_code -eq 130 ]; then
+        return 130
+    fi
 
     # Check for sudo flag and extract numeric part
     local use_sudo=false

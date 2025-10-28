@@ -6,8 +6,15 @@ mongo_connect() {
     printf "How would you like to connect?\n\n"
     printf "1. Via \033[1mMongoCLI\033[0m\n"
     printf "2. Via \033[1mAtlasGUI\033[0m\n"
-    printf "\nSelect option (number): "
-    read option
+    printf "\nSelect option (number):\n"
+    create_input 1 1 15 "Invalid input. " "numerical"
+    local input_exit_code=$?
+    option="$user_input"
+
+    if [ $input_exit_code -eq 130 ]; then
+        return 130
+    fi
+
     while true; do
         case "$option" in
         1)
@@ -17,12 +24,6 @@ mongo_connect() {
         2)
             open_atlas $cluster $port
             return
-            ;;
-        *)
-            printf "\n\033[31mInvalid selection. Please enter 1 or 2.\033[0m\n"
-            printf "\nSelect option (number): "
-            read option
-            continue
             ;;
         esac
     done
