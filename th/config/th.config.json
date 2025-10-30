@@ -1,7 +1,7 @@
 {
   "kube": {
     "admin": {
-      "cluster": "headquarter-admin-eks-green",
+      "cluster": "headquarter-admin-eks-blue",
       "request_role": ""
     },
     "dev": {
