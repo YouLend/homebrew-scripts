@@ -32,11 +32,11 @@
       "cluster": "aslive-usstaging-eks-green",
       "request_role": ""
     },
-    "cpgw": {
+    "cpgc": {
       "cluster": "platformcentral-corepg-eks-green",
       "request_role": ""
     },
-    "cpgc": {
+    "cpgw": {
       "cluster": "platformwest-corepg-eks-blue",
       "request_role": ""
     }
