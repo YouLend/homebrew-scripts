@@ -9,7 +9,16 @@ th_login() {
         return 0
     fi
     printf "\nLogging you into Teleport...\n"
-    tsh login --auth=ad --proxy=youlend.teleport.sh:443 > /dev/null 2>&1
+
+    # Check if users running on WSL
+    if [[ -n "$WSL_DISTRO_NAME" ]]; then
+        tsh login --auth=ad --proxy=youlend.teleport.sh:443 2>&1 \
+        | awk '/https?:\/\// {print $1; exit}' \
+        | xargs -r /mnt/c/Windows/explorer.exe
+    else
+        tsh login --auth=ad --proxy=youlend.teleport.sh:443 > /dev/null 2>&1
+    fi 
+
     # Wait until login completes (max 15 seconds)
     for i in {1..30}; do
         if tsh status 2>/dev/null | grep -q 'Logged in as:'; then

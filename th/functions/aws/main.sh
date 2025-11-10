@@ -59,7 +59,7 @@ aws_login() {
     printf "\033[1A"
     printf "           to account number to request access; i.e. 5s\n\n"
     printf "Select account (number): \n"
-    create_input 1 2 50 "Invalid input. " "numerical"
+    create_input 1 3 50 "Invalid input. " "numerical"
     local input_exit_code=$?
     app_choice="$user_input"
 
