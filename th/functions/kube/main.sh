@@ -92,7 +92,7 @@ kube_login() {
         printf "           Selecting one will start an access request.\n"
     fi
     printf "\n\033[1mSelect cluster (number):\033[0m\n"
-    create_input 1 2 50 "Invalid input. " "numerical"
+    create_input 1 3 50 "Invalid input. " "numerical"
     local input_exit_code=$?
     choice="$user_input"
 
